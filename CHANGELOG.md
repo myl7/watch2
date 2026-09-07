@@ -4,7 +4,7 @@ All notable changes to `/watch` are documented here.
 
 ## [0.3.0] — 2026-09-07
 
-Fork rename: `cheap-claude-video` → `watch-notes`.
+Fork rename: `cheap-claude-video` → `watch2`.
 
 ### Added
 - **Provider registry** (`scripts/asr.py`, was `scripts/whisper.py`). Every backend speaks the same OpenAI `/audio/transcriptions` shape, so adding one is a row in `PROVIDERS` instead of a new module and a new branch in `watch.py`.

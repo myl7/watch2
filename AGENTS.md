@@ -1,4 +1,4 @@
-# watch-notes / watch skill
+# watch2 / watch skill
 
 Agent Skills package that gives an agent a video input. Installable across Claude Code (most common host), Codex, Cursor, GitHub Copilot, and 50+ other [Agent Skills](https://agentskills.io) hosts. Pure-stdlib Python that orchestrates `yt-dlp` + `ffmpeg` and an optional transcription API.
 
@@ -26,8 +26,8 @@ Agent Skills package that gives an agent a video input. Installable across Claud
 
 | Surface | Install |
 |---------|---------|
-| Claude Code | `/plugin marketplace add myl7/watch-notes` then `/plugin install watch@watch-notes` |
-| Codex / Cursor / Copilot / +50 | `npx skills add myl7/watch-notes -g` |
+| Claude Code | `/plugin marketplace add myl7/watch2` then `/plugin install watch@watch2` |
+| Codex / Cursor / Copilot / +50 | `npx skills add myl7/watch2 -g` |
 | claude.ai (web) | upload `dist/watch.skill` (built by `skills/watch/scripts/build-skill.sh`) |
 
 ## Commands

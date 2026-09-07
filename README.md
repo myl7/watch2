@@ -1,4 +1,4 @@
-# watch-notes
+# watch2
 
 An agent skill that turns a video into timestamped markdown notes.
 
@@ -42,21 +42,21 @@ Requires `python3`, `ffmpeg`, and `yt-dlp`. The setup script checks for them and
 Claude Code:
 
 ```
-/plugin marketplace add myl7/watch-notes
-/plugin install watch@watch-notes
+/plugin marketplace add myl7/watch2
+/plugin install watch@watch2
 ```
 
 Everything else:
 
 ```
-npx skills add myl7/watch-notes -g
+npx skills add myl7/watch2 -g
 ```
 
 Or clone and symlink:
 
 ```
-git clone https://github.com/myl7/watch-notes.git
-ln -s "$(pwd)/watch-notes/skills/watch" ~/.claude/skills/watch   # or ~/.codex/skills/watch
+git clone https://github.com/myl7/watch2.git
+ln -s "$(pwd)/watch2/skills/watch" ~/.claude/skills/watch   # or ~/.codex/skills/watch
 ```
 
 Then add a key to `~/.config/watch/.env`:

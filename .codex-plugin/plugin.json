@@ -5,8 +5,8 @@
   "author": {
     "name": "myl7"
   },
-  "homepage": "https://github.com/myl7/watch-notes",
-  "repository": "https://github.com/myl7/watch-notes",
+  "homepage": "https://github.com/myl7/watch2",
+  "repository": "https://github.com/myl7/watch2",
   "license": "MIT",
   "keywords": [
     "video",
@@ -34,7 +34,7 @@
       "Interactive",
       "Read"
     ],
-    "websiteURL": "https://github.com/myl7/watch-notes",
+    "websiteURL": "https://github.com/myl7/watch2",
     "defaultPrompt": [
       "/watch https://youtu.be/dQw4w9WgXcQ what happens at the 30 second mark?",
       "/watch ~/Movies/screen-recording.mp4 when does the UI break?",

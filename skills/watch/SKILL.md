@@ -4,8 +4,8 @@ version: "0.3.0"
 description: Watch a video (URL or local path). Downloads with yt-dlp, pulls a timestamped transcript from native captions or an ASR API, optionally extracts frames with ffmpeg, and writes a markdown report to disk for Claude to read, summarize, and answer from.
 argument-hint: "<video-url-or-path> [question]"
 allowed-tools: Bash, Read, Edit, Grep, AskUserQuestion
-homepage: https://github.com/myl7/watch-notes
-repository: https://github.com/myl7/watch-notes
+homepage: https://github.com/myl7/watch2
+repository: https://github.com/myl7/watch2
 author: myl7
 license: MIT
 user-invocable: true
@@ -22,7 +22,7 @@ You then `Read` the report, write your notes into it, and answer the user. The t
 Every `python3 ...` command below runs a bundled script under `SKILL_DIR/scripts/`. Set `SKILL_DIR` to the **absolute path of the directory containing THIS SKILL.md you just Read** — your harness told you that path in the Read result. The scripts are always a direct sibling of this file (`SKILL_DIR/scripts/watch.py`), in every install layout:
 
 ```
-Read ~/.claude/plugins/cache/watch-notes/watch/<ver>/skills/watch/SKILL.md → SKILL_DIR=…/skills/watch
+Read ~/.claude/plugins/cache/watch2/watch/<ver>/skills/watch/SKILL.md → SKILL_DIR=…/skills/watch
 Read ~/.codex/skills/watch/SKILL.md                                          → SKILL_DIR=~/.codex/skills/watch
 Read ~/.agents/skills/watch/SKILL.md                                         → SKILL_DIR=~/.agents/skills/watch
 ```
