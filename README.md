@@ -2,7 +2,7 @@
 
 An agent skill that turns a video into timestamped markdown notes.
 
-Point it at a URL or a local file. It pulls the platform's own captions when they exist (free), transcribes the audio when they don't, writes a markdown report to `~/watch-notes/`, and hands the path to your agent, which reads it and writes the notes into the same file.
+Point it at a URL or a local file. It pulls the platform's own captions when they exist (free), transcribes the audio when they don't, writes a markdown report to `~/.local/share/watch2/`, and hands the path to your agent, which reads it and writes the notes into the same file.
 
 Works in Claude Code, Codex, Cursor, Copilot, and anything else that loads Agent Skills.
 
@@ -87,7 +87,7 @@ Everything lives in `~/.config/watch/.env`.
 | `GROQ_API_KEY` / `OPENAI_API_KEY` | — | Fallback ASR keys |
 | `WATCH_TRANSCRIBER` | `auto` | Force a backend. `auto` walks deepinfra → groq → openai for the first key set |
 | `WATCH_DETAIL` | `transcript` | `transcript` (no frames) / `efficient` / `balanced` / `token-burner` |
-| `WATCH_NOTES_DIR` | `~/watch-notes` | Where reports are written |
+| `WATCH_NOTES_DIR` | `$XDG_DATA_HOME/watch2` (`~/.local/share/watch2`) | Where reports are written |
 | `WATCH_YTDLP_COOKIES_FROM_BROWSER` | — | Browser to pull cookies from. Bilibili rejects the default yt-dlp UA with HTTP 412 |
 
 ## Development

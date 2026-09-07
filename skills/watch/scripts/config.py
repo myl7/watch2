@@ -19,7 +19,8 @@ DEFAULT_DETAIL = "transcript"
 # Where reports land. The transcript of an hour-long video is tens of thousands
 # of tokens; it goes to a file so the agent reads what it needs instead of
 # taking the whole thing through stdout.
-DEFAULT_NOTES_DIR = Path.home() / "watch-notes"
+XDG_DATA_HOME = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+DEFAULT_NOTES_DIR = XDG_DATA_HOME / "watch2"
 
 DETAILS = {"transcript", "efficient", "balanced", "token-burner"}
 

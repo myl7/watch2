@@ -75,7 +75,7 @@ def main() -> int:
         type=str,
         default=None,
         help="Write the report to this markdown file. Default: "
-             "$WATCH_NOTES_DIR/<date>-<title>.md (~/watch-notes if unset).",
+             "$WATCH_NOTES_DIR/<date>-<title>.md (~/.local/share/watch2 if unset).",
     )
     ap.add_argument(
         "--stdout",

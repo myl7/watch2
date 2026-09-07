@@ -56,6 +56,9 @@ DEEPINFRA_API_KEY=
 GROQ_API_KEY=
 OPENAI_API_KEY=
 
+# Where reports are written. Default: $XDG_DATA_HOME/watch2 (~/.local/share/watch2)
+# WATCH_NOTES_DIR=
+
 # Default watch behavior (the /watch first-run wizard sets this for you).
 # Allowed values: transcript (default, no frames) | efficient | balanced | token-burner
 # Keep the value on its own line with no trailing comment.

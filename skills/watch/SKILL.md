@@ -152,7 +152,7 @@ Optional flags:
 - `--asr deepinfra|deepinfra-cheap|deepinfra-whisper|groq|openai` — force a transcription backend. Default: the `WATCH_TRANSCRIBER` config, else the first provider with a key (`deepinfra` → `groq` → `openai`). See Transcription below for when to override.
 - `--ignore-captions` — ignore native captions and transcribe the audio with an ASR backend instead. Reach for this when captions came back but are **useless** (mostly `[Music]` / `foreign` / empty placeholders — songs, or non-English speech YouTube couldn't caption). Forces a download even at `transcript` detail so the audio is available. See "When native captions are useless" below.
 - `--no-asr` — disable the transcription fallback entirely (no transcript if captions are missing)
-- `--notes PATH` — write the report to a specific file instead of the default `~/watch-notes/<date>-<title>.md`
+- `--notes PATH` — write the report to a specific file instead of the default `~/.local/share/watch2/<date>-<title>.md`
 - `--stdout` — print the report instead of writing it to a file. Only for debugging; it defeats the point of the file.
 - `--no-dedup` — keep near-duplicate frames. By default a frame-delta pass drops frames that are visually near-identical to the previous kept one (held slides, static screen recordings, paused video) so the frame budget goes to distinct content; the report's **Frames** line notes how many were dropped. Pass this only if the user needs every sampled frame (e.g. judging subtle frame-to-frame motion).
 
@@ -208,7 +208,7 @@ Do not paste the full transcript into chat. Quote only the lines that carry the 
 
 If the user asked a specific question rather than asking for notes, answer it directly with timestamps and skip the note-writing.
 
-**Step 6 — clean up.** The script prints a working directory at the end. If the user isn't going to ask follow-ups about this video, delete it with `rm -rf <dir>`. If they might, leave it in place. The report in `~/watch-notes/` is the durable artifact and stays.
+**Step 6 — clean up.** The script prints a working directory at the end. If the user isn't going to ask follow-ups about this video, delete it with `rm -rf <dir>`. If they might, leave it in place. The report in `~/.local/share/watch2/` is the durable artifact and stays.
 
 ## Detail and frames
 
@@ -300,7 +300,7 @@ If you already watched a video this session and the user asks a follow-up, do **
 - Runs `yt-dlp` locally to download the video and pull native captions when the source supports them (public data; the request goes directly to whatever host the URL points at)
 - Runs `ffmpeg` / `ffprobe` locally to extract a mono 16 kHz audio clip and, when frames are requested, JPEGs
 - Sends the extracted audio clip to exactly one transcription endpoint, chosen by the resolved backend: `api.deepinfra.com/v1/openai/audio/transcriptions`, `api.groq.com/openai/v1/audio/transcriptions`, or `api.openai.com/v1/audio/transcriptions`
-- Writes the report to `~/watch-notes/` (or `WATCH_NOTES_DIR`, or the path given to `--notes`)
+- Writes the report to `$XDG_DATA_HOME/watch2/` (`~/.local/share/watch2/` by default; override with `WATCH_NOTES_DIR` or `--notes`)
 - Writes the downloaded video, frames, audio, and an intermediate transcript to a working directory under the system temp dir (or `--out-dir` if specified) so Claude can `Read` them
 - Reads / creates `~/.config/watch/.env` (mode `0600`) to store the transcription credentials and a `SETUP_COMPLETE` marker. As a fallback, also reads `.env` in the current working directory
 

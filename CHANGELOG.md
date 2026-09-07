@@ -9,7 +9,7 @@ Fork rename: `cheap-claude-video` → `watch2`.
 ### Added
 - **Provider registry** (`scripts/asr.py`, was `scripts/whisper.py`). Every backend speaks the same OpenAI `/audio/transcriptions` shape, so adding one is a row in `PROVIDERS` instead of a new module and a new branch in `watch.py`.
 - **DeepInfra backends** — `deepinfra` (`Qwen/Qwen3-ASR-1.7B`, $0.027/hr, the new default), `deepinfra-cheap` (`Qwen/Qwen3-ASR-0.6B`, $0.012/hr), `deepinfra-whisper` (`openai/whisper-large-v3-turbo`, $0.012/hr). `auto` now walks deepinfra → groq → openai.
-- **Reports are written to disk** at `~/watch-notes/<date>-<title>.md` (override with `WATCH_NOTES_DIR` or `--notes`). The script prints the path and a one-line summary; the agent reads the file and writes its notes into the `## Notes` placeholder, keeping the summary and its source transcript together. `--stdout` restores the old behavior for debugging.
+- **Reports are written to disk** at `$XDG_DATA_HOME/watch2/<date>-<title>.md` (`~/.local/share/watch2` by default) (override with `WATCH_NOTES_DIR` or `--notes`). The script prints the path and a one-line summary; the agent reads the file and writes its notes into the `## Notes` placeholder, keeping the summary and its source transcript together. `--stdout` restores the old behavior for debugging.
 
 ### Changed
 - **Default transcriber is Qwen3-ASR rather than Whisper.** On a mixed zh/en podcast Whisper returned the entire transcript with no punctuation and turned "ChatGPT" into 差子就列, "运行脚本" into 允许脚本, and "语言方面" into 预言方面; Qwen3-ASR got all three right. It is also cheaper than Groq. Whisper keeps finer timestamps (~2-6s spans against Qwen3-ASR's fixed ~27s slices), which is the reason to override.
