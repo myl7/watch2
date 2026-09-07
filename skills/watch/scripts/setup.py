@@ -22,8 +22,10 @@ import json
 import os
 import platform
 import shutil
+import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -70,9 +72,13 @@ OPENAI_API_KEY=
 # groq | openai.
 # WATCH_TRANSCRIBER=auto
 
-# yt-dlp options for gated sites. Bilibili rejects the default yt-dlp UA with
-# HTTP 412 — set a browser to pull cookies from (a browser UA is added too).
+# yt-dlp options for gated content. Neither YouTube nor Bilibili needs these
+# for ordinary public videos — keep yt-dlp current instead, that is what fixes
+# most download failures. Cookies are for member-only or age-gated content.
 # Values: chrome | firefox | chromium | edge | brave | chrome:ProfileName
+#
+# Do NOT set WATCH_YTDLP_USER_AGENT for Bilibili: a bare request to a video
+# page works and a browser UA draws HTTP 412.
 # WATCH_YTDLP_COOKIES_FROM_BROWSER=chrome
 # WATCH_YTDLP_COOKIES_FILE=/path/to/cookies.txt
 # WATCH_YTDLP_USER_AGENT=
@@ -92,6 +98,38 @@ OPENAI_API_KEY=
 
 def _which(name: str) -> str | None:
     return shutil.which(name)
+
+
+# YouTube's anti-bot changes every few weeks and yt-dlp answers it in a release,
+# so a yt-dlp more than this old is the most likely cause of a download that
+# used to work. Reported, never enforced: a stale yt-dlp still handles most
+# sites, and captions keep working even when the audio download does not.
+YTDLP_STALE_DAYS = 45
+
+
+def _ytdlp_age_days() -> int | None:
+    """Days since the installed yt-dlp's release, or None if unknown.
+
+    yt-dlp versions are release dates (2026.08.19), which is the whole reason
+    this can be checked offline.
+    """
+    exe = _which("yt-dlp")
+    if not exe:
+        return None
+    try:
+        out = subprocess.run(
+            [exe, "--version"], capture_output=True, text=True, timeout=15
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.match(r"^(\d{4})\.(\d{2})\.(\d{2})", out)
+    if not m:
+        return None
+    try:
+        released = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+    return max(0, (date.today() - released).days)
 
 
 def _check_binaries() -> list[str]:
@@ -280,8 +318,11 @@ def _status() -> dict:
     can_proceed = (not missing) and (has_key or setup_complete)
 
     cfg = get_config()
+    ytdlp_age = _ytdlp_age_days()
     return {
         "status": status,
+        "ytdlp_age_days": ytdlp_age,
+        "ytdlp_stale": ytdlp_age is not None and ytdlp_age > YTDLP_STALE_DAYS,
         "can_proceed": can_proceed,
         "first_run": not setup_complete,
         "setup_complete": setup_complete,

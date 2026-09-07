@@ -88,7 +88,19 @@ Everything lives in `~/.config/watch/.env`.
 | `WATCH_TRANSCRIBER` | `auto` | Force a backend. `auto` walks deepinfra → groq → openai for the first key set |
 | `WATCH_DETAIL` | `transcript` | `transcript` (no frames) / `efficient` / `balanced` / `token-burner` |
 | `WATCH_NOTES_DIR` | `$XDG_DATA_HOME/watch2` (`~/.local/share/watch2`) | Where reports are written |
-| `WATCH_YTDLP_COOKIES_FROM_BROWSER` | — | Browser to pull cookies from. Bilibili rejects the default yt-dlp UA with HTTP 412 |
+| `WATCH_YTDLP_COOKIES_FROM_BROWSER` | — | Browser to pull cookies from. Only for member-only or age-gated content |
+
+## When a download fails
+
+Update yt-dlp first. Site extractors break constantly and the fix ships in a release, so a yt-dlp more than a few weeks old is the most likely cause. `setup.py --json` reports `ytdlp_age_days` and `ytdlp_stale` for exactly this reason.
+
+```
+pipx upgrade yt-dlp   # or: brew upgrade yt-dlp / pip install -U yt-dlp
+```
+
+Bilibili needs no special handling for public videos. Do not set a browser user agent for it: a bare request to a video page works, and a browser UA draws HTTP 412. (Bilibili's search endpoint is the opposite, but this skill takes URLs, not queries.)
+
+YouTube occasionally needs `WATCH_YTDLP_REMOTE_COMPONENTS=ejs:github`, which lets yt-dlp fetch and run its remote JS challenge solver. It is off by default because it downloads and executes a component at runtime.
 
 ## Development
 

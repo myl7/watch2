@@ -280,6 +280,7 @@ python3 "${SKILL_DIR}/scripts/watch.py" "$URL" --ignore-captions
 ## Failure modes and handling
 
 - **Setup preflight failed** → run `python3 "${SKILL_DIR}/scripts/setup.py"` (auto-installs ffmpeg/yt-dlp via brew on macOS, scaffolds the `.env`). For API key, ask the user via `AskUserQuestion` and write it to `~/.config/watch/.env`.
+- **Download fails / yt-dlp returns nothing** → check `ytdlp_age_days` from the Step 0 `--json` output. A yt-dlp more than ~45 days old is the most likely cause; tell the user to run `pipx upgrade yt-dlp` (or `brew upgrade yt-dlp`). Do not reach for cookies or a user agent first. For Bilibili specifically, never set `WATCH_YTDLP_USER_AGENT` — a bare request works and a browser UA draws HTTP 412.
 - **No transcript available** → captions missing AND (no ASR key OR the API failed). Script prints a hint pointing to setup. Tell the user; offer `--detail balanced` if frames would answer the question.
 - **Long video warning printed** → acknowledge it in your answer. Offer to re-run focused on a specific section via `--start`/`--end` rather than a sparse full-video scan.
 - **Download fails** → yt-dlp's error goes to stderr. If it's a login-required or region-locked video, tell the user plainly; do not keep retrying.

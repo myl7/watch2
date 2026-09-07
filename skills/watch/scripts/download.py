@@ -19,21 +19,19 @@ from config import read_env_file
 
 VIDEO_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi", ".flv", ".wmv"}
 
-# A modern desktop-browser UA. Some gated sites (Bilibili) reject yt-dlp's
-# default UA with HTTP 412; a browser UA plus cookies clears it.
-_BROWSER_UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-)
-
-
 def _ytdlp_auth_args() -> list[str]:
     """Cookie / UA args for yt-dlp, from env or ~/.config/watch/.env.
 
     - WATCH_YTDLP_COOKIES_FROM_BROWSER: e.g. `chrome`, `firefox`, `chrome:Default`
     - WATCH_YTDLP_COOKIES_FILE: path to a Netscape cookies.txt
-    - WATCH_YTDLP_USER_AGENT: override the UA (defaults to a browser UA when any
-      cookie source is set, which is what gated sites like Bilibili need)
+    - WATCH_YTDLP_USER_AGENT: send this UA instead of yt-dlp's own
+
+    The UA is sent only when explicitly configured. An earlier version forced a
+    hardcoded browser UA whenever a cookie source was set, on the theory that
+    Bilibili rejects yt-dlp's own UA with HTTP 412. That is now backwards:
+    against a current yt-dlp, a bare request to a Bilibili video page succeeds
+    and overriding the UA is what draws the 412. (Bilibili's *search* endpoint
+    still wants a browser UA, but this skill takes URLs, not search queries.)
     """
     file_values = read_env_file()
 
@@ -51,8 +49,6 @@ def _ytdlp_auth_args() -> list[str]:
     user_agent = get("WATCH_YTDLP_USER_AGENT")
     if user_agent:
         args += ["--user-agent", user_agent]
-    elif from_browser or cookies_file:
-        args += ["--user-agent", _BROWSER_UA]
     return args
 
 
@@ -220,6 +216,43 @@ def _read_info(info_path: Path, url: str) -> dict:
     return info
 
 
+def _is_bilibili(url: str) -> bool:
+    return "bilibili.com" in url or "b23.tv" in url
+
+
+def _download_failure_hint(url: str) -> str:
+    """What to try when yt-dlp came back empty, most likely cause first.
+
+    A stale yt-dlp leads because that is what an extractor break actually is:
+    the site changed and the fix shipped in a release you do not have.
+    """
+    hints: list[str] = []
+
+    from setup import YTDLP_STALE_DAYS, _ytdlp_age_days  # local: avoids a cycle
+
+    age = _ytdlp_age_days()
+    if age is not None and age > YTDLP_STALE_DAYS:
+        hints.append(
+            f"The installed yt-dlp is {age} days old. Site extractors break "
+            "constantly and are fixed in releases, so update it first: "
+            "`pipx upgrade yt-dlp` (or `brew upgrade yt-dlp`, `pip install -U yt-dlp`)."
+        )
+    if _is_youtube(url):
+        hints.append(
+            "If this is a YouTube anti-bot/JS-challenge failure, set "
+            "WATCH_YTDLP_REMOTE_COMPONENTS=ejs:github in ~/.config/watch/.env to let "
+            "yt-dlp fetch+run its remote JS solver (disabled by default)."
+        )
+    if _is_bilibili(url):
+        hints.append(
+            "For Bilibili, do NOT set WATCH_YTDLP_USER_AGENT: a bare request "
+            "works and a browser UA draws HTTP 412. Cookies "
+            "(WATCH_YTDLP_COOKIES_FROM_BROWSER) are only needed for "
+            "member-only or high-bitrate formats."
+        )
+    return (" " + " ".join(hints)) if hints else ""
+
+
 def download_url(
     url: str,
     out_dir: Path,
@@ -257,14 +290,9 @@ def download_url(
     result = subprocess.run(cmd, stdout=sys.stderr, stderr=sys.stderr)
     video = _pick_video(out_dir)
     if video is None:
-        hint = (
-            " If this looks like a YouTube anti-bot/JS-challenge failure, set "
-            "WATCH_YTDLP_REMOTE_COMPONENTS=ejs:github in ~/.config/watch/.env to let "
-            "yt-dlp fetch+run its remote JS solver (disabled by default)."
-            if _is_youtube(url) else ""
-        )
         raise SystemExit(
-            f"yt-dlp did not produce a video file in {out_dir} (exit {result.returncode}).{hint}"
+            f"yt-dlp did not produce a video file in {out_dir} "
+            f"(exit {result.returncode}).{_download_failure_hint(url)}"
         )
 
     info = _read_info(out_dir / "video.info.json", url)
