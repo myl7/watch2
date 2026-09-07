@@ -1,12 +1,26 @@
 {
   "name": "watch",
-  "version": "0.2.1",
-  "description": "Let Claude watch a video. Downloads with yt-dlp, extracts auto-scaled frames with ffmpeg, pulls captions or falls back to Whisper, and hands frames + transcript to Claude so it can answer questions about the video.",
+  "version": "0.3.0",
+  "description": "Let Claude watch a video. Downloads with yt-dlp, transcribes with Qwen3-ASR (or native captions, free), optionally extracts frames with ffmpeg, and writes a timestamped markdown report Claude reads and turns into notes.",
   "author": {
-    "name": "Bradley Bonanno"
+    "name": "myl7"
   },
-  "homepage": "https://github.com/bradautomates/claude-video",
-  "repository": "https://github.com/bradautomates/claude-video",
+  "homepage": "https://github.com/myl7/watch-notes",
+  "repository": "https://github.com/myl7/watch-notes",
   "license": "MIT",
-  "keywords": ["video", "watch", "youtube", "vimeo", "tiktok", "transcription", "whisper", "yt-dlp", "ffmpeg", "multimodal", "frames"]
+  "keywords": [
+    "video",
+    "watch",
+    "youtube",
+    "bilibili",
+    "podcast",
+    "transcription",
+    "asr",
+    "qwen3-asr",
+    "whisper",
+    "chinese",
+    "yt-dlp",
+    "ffmpeg",
+    "notes"
+  ]
 }
