@@ -1,26 +1,28 @@
 ---
 name: watch
-version: "0.2.1"
-description: Watch a video (URL or local path). Downloads with yt-dlp, extracts auto-scaled frames with ffmpeg, pulls the transcript from captions (or Whisper API fallback), and hands the result to Claude so it can answer questions about what's in the video.
+version: "0.3.0"
+description: Watch a video (URL or local path). Downloads with yt-dlp, pulls a timestamped transcript from native captions or an ASR API, optionally extracts frames with ffmpeg, and writes a markdown report to disk for Claude to read, summarize, and answer from.
 argument-hint: "<video-url-or-path> [question]"
-allowed-tools: Bash, Read, AskUserQuestion
-homepage: https://github.com/bradautomates/claude-video
-repository: https://github.com/bradautomates/claude-video
-author: bradautomates
+allowed-tools: Bash, Read, Edit, Grep, AskUserQuestion
+homepage: https://github.com/myl7/watch-notes
+repository: https://github.com/myl7/watch-notes
+author: myl7
 license: MIT
 user-invocable: true
 ---
 
 # /watch
 
-You don't have a video input; this skill gives you one. A Python script gets captions first, optionally downloads the video, extracts frames as JPEGs (scene-aware, or fast keyframes at `efficient` detail), gets a timestamped transcript (native captions first, then Whisper API as fallback), and prints frame paths. You then `Read` each frame path to see the images and combine them with the transcript to answer the user.
+You don't have a video input; this skill gives you one. A Python script gets a timestamped transcript (native captions first, then an ASR API), optionally downloads the video and extracts frames as JPEGs, and writes all of it to a markdown file. It prints only that file's path.
+
+You then `Read` the report, write your notes into it, and answer the user. The transcript of an hour-long video runs tens of thousands of tokens, which is why it goes to a file rather than through stdout.
 
 ## Resolve `SKILL_DIR` (do this before any command)
 
 Every `python3 ...` command below runs a bundled script under `SKILL_DIR/scripts/`. Set `SKILL_DIR` to the **absolute path of the directory containing THIS SKILL.md you just Read** — your harness told you that path in the Read result. The scripts are always a direct sibling of this file (`SKILL_DIR/scripts/watch.py`), in every install layout:
 
 ```
-Read ~/.claude/plugins/cache/claude-video/watch/<ver>/skills/watch/SKILL.md → SKILL_DIR=…/skills/watch
+Read ~/.claude/plugins/cache/watch-notes/watch/<ver>/skills/watch/SKILL.md → SKILL_DIR=…/skills/watch
 Read ~/.codex/skills/watch/SKILL.md                                          → SKILL_DIR=~/.codex/skills/watch
 Read ~/.agents/skills/watch/SKILL.md                                         → SKILL_DIR=~/.agents/skills/watch
 ```
@@ -48,14 +50,14 @@ python3 "${SKILL_DIR}/scripts/setup.py" --json
 
 Branch on two fields:
 
-- **`can_proceed: true` and `first_run: false`** → setup is already done (the user may have deliberately skipped a Whisper key — that's allowed). Proceed to Step 1 without comment.
+- **`can_proceed: true` and `first_run: false`** → setup is already done (the user may have deliberately skipped an ASR key — that's allowed). Proceed to Step 1 without comment.
 - **`first_run: true`** → genuine first-time setup. Do these in order:
   1. If `missing_binaries` is non-empty, run the installer first (it auto-installs on macOS / prints commands elsewhere — see below) and confirm the binaries land. **Do not skip this and jump to preferences.**
   2. Run the installer once more if needed so it scaffolds `~/.config/watch/.env` (it only writes the template when the file is absent, so let it create the file *before* you write any values into it).
-  3. Encourage a Whisper API key and ask the watch-preference questions below, then write the selected values into `~/.config/watch/.env` and set `SETUP_COMPLETE=true`.
+  3. Encourage an ASR API key and ask the watch-preference questions below, then write the selected values into `~/.config/watch/.env` and set `SETUP_COMPLETE=true`.
 - **`can_proceed: false` and `first_run: false`** → setup was finished before but the environment regressed (e.g. `missing_binaries` after an OS change). Run the installer to remediate, then proceed. Don't re-ask preferences.
 
-A missing Whisper key is *encouraged to fix, not required*: on a genuine first run `status` will read `needs_key` even when binaries are present — that's your cue to encourage a key, not a blocker.
+A missing ASR key is *encouraged to fix, not required*: on a genuine first run `status` will read `needs_key` even when binaries are present — that's your cue to encourage a key, not a blocker.
 
 On follow-up `/watch` calls in the same session, use the silent check:
 
@@ -63,14 +65,14 @@ On follow-up `/watch` calls in the same session, use the silent check:
 python3 "${SKILL_DIR}/scripts/setup.py" --check
 ```
 
-This is a <100ms lookup. Exit 0 means /watch can run — this **includes a user who finished setup without a Whisper key** (keyless is allowed). On exit 0 the script emits **nothing** — proceed to Step 1 without comment. **Do NOT announce "setup is complete" to the user** — they don't need a status message on every turn. The only acceptable user-visible output from Step 0 is when remediation is required.
+This is a <100ms lookup. Exit 0 means /watch can run — this **includes a user who finished setup without an ASR key** (keyless is allowed). On exit 0 the script emits **nothing** — proceed to Step 1 without comment. **Do NOT announce "setup is complete" to the user** — they don't need a status message on every turn. The only acceptable user-visible output from Step 0 is when remediation is required.
 
 On non-zero exit, follow the table:
 
 | Exit | Meaning | Action |
 |------|---------|--------|
 | `2` | Missing binaries (`ffmpeg` / `ffprobe` / `yt-dlp`) | Run installer |
-| `3` | Genuine first run with no Whisper API key | Run installer to scaffold `.env`, then encourage a key (the user may decline — proceed with `--no-whisper`) |
+| `3` | Genuine first run with no ASR API key | Run installer to scaffold `.env`, then encourage a key (the user may decline — proceed with `--no-asr`) |
 | `4` | Both missing | Run installer, then encourage a key |
 
 Exit `3` only fires before the user has completed setup. Once `SETUP_COMPLETE=true` is written, a keyless install returns exit 0 and is never nagged again.
@@ -83,25 +85,25 @@ python3 "${SKILL_DIR}/scripts/setup.py"
 
 On macOS with Homebrew, it auto-installs `ffmpeg` and `yt-dlp`. On Linux/Windows, it prints the exact install commands for the user to run. It scaffolds `~/.config/watch/.env` with commented placeholders and default watch settings at `0600` perms.
 
-**If an API key is still missing after install:** use `AskUserQuestion` to ask the user whether they have a Groq API key (preferred — cheaper, faster) or an OpenAI key. Then write it into `~/.config/watch/.env` — set the matching `GROQ_API_KEY=...` or `OPENAI_API_KEY=...` line. If they don't want to set up Whisper, proceed with `--no-whisper` and tell them videos without native captions will come back frames-only.
+**If an API key is still missing after install:** use `AskUserQuestion` to ask the user which key they have. Recommend DeepInfra — it is the cheapest of the three and the only one that transcribes Chinese well. Then write it into `~/.config/watch/.env` as `DEEPINFRA_API_KEY=...`, `GROQ_API_KEY=...`, or `OPENAI_API_KEY=...`. If they decline, proceed with `--no-asr` and tell them videos without native captions will come back with no transcript.
 
 **First-run watch preference:** after the installer has scaffolded `~/.config/watch/.env`, use `AskUserQuestion` to ask one question:
 
 - Default detail (one dial). Present these as `AskUserQuestion` options in this exact order — lightest to heaviest — and keep `(recommended)` on `balanced` even though it is not first (do **not** reorder to put the recommended option first):
   - `transcript` — no frames at all, transcript only (skips video download when captions exist).
   - `efficient` — fast keyframe pass (cap 50).
-  - `balanced` (recommended) — scene-aware frames (cap 100, default).
+  - `balanced` — scene-aware frames (cap 100).
   - `token-burner` — scene-aware, uncapped (maximum fidelity; high token cost).
 
 Write the answer directly into `~/.config/watch/.env` by setting the bare key on its own line — **no trailing inline comment** (a `# note` after the value can break parsing):
 
 ```bash
-WATCH_DETAIL=balanced
+WATCH_DETAIL=transcript
 ```
 
 Use the user's selected value. If they skip the question, keep the recommended default. Once dependencies, the API-key choice, and this preference are handled, write or update `SETUP_COMPLETE=true` in the same file. Do not ask this preference question again when `SETUP_COMPLETE=true`.
 
-**Structured mode (optional):** `python3 "${SKILL_DIR}/scripts/setup.py" --json` emits `{status, can_proceed, first_run, setup_complete, missing_binaries, whisper_backend, has_api_key, config_file, watch_detail, platform}` where `status` is one of `ready | needs_install | needs_key | needs_install_and_key`. `status` describes the *ideal* state (a key is encouraged, so a keyless first run reads `needs_key`); `can_proceed` is the operational gate (binaries present AND a key is set OR setup was already completed). Branch on `can_proceed`/`first_run` to decide whether to run; use `status` to decide what to encourage.
+**Structured mode (optional):** `python3 "${SKILL_DIR}/scripts/setup.py" --json` emits `{status, can_proceed, first_run, setup_complete, missing_binaries, whisper_backend, has_api_key, config_file, watch_detail, platform}` (`whisper_backend` keeps its name for compatibility; it now holds an `asr.PROVIDERS` key such as `deepinfra`) where `status` is one of `ready | needs_install | needs_key | needs_install_and_key`. `status` describes the *ideal* state (a key is encouraged, so a keyless first run reads `needs_key`); `can_proceed` is the operational gate (binaries present AND a key is set OR setup was already completed). Branch on `can_proceed`/`first_run` to decide whether to run; use `status` to decide what to encourage.
 
 Within a single session, you can skip Step 0 on follow-up `/watch` calls — once `--check` returned 0, nothing about the environment changes between turns.
 
@@ -118,7 +120,7 @@ Within a single session, you can skip Step 0 on follow-up `/watch` calls — onc
 - **The frame ceiling is set by the detail mode** (`WATCH_DETAIL` in `~/.config/watch/.env`, or `--detail`), not a single global cap:
   - `transcript` → no frames
   - `efficient` → up to **50** (keyframes)
-  - `balanced` (default) → up to **100** (scene-aware)
+  - `balanced` → up to **100** (scene-aware)
   - `token-burner` → **uncapped** (scene-aware; a soft warning prints past 250 frames)
   - `--max-frames N` overrides whichever cap the mode would otherwise use.
 - **Full-video frame budget by duration.** Token cost grows with frame count, so the script targets a budget by duration. This budget sets the fps and the uniform-sampling fallback; scene-aware selection can fill up to the detail cap above, whichever is lower:
@@ -140,16 +142,18 @@ python3 "${SKILL_DIR}/scripts/watch.py" "<source>"
 ```
 
 Optional flags:
-- `--detail transcript|efficient|balanced|token-burner` — fidelity/speed dial. `transcript` = no frames (transcript only, skips video download when captions exist); `efficient` = fast keyframes (cap 50); `balanced` = scene-aware frames (cap 100); `token-burner` = scene-aware, uncapped.
+- `--detail transcript|efficient|balanced|token-burner` — fidelity/speed dial. `transcript` (**default**) = no frames, skips the video download when captions exist; `efficient` = fast keyframes (cap 50); `balanced` = scene-aware frames (cap 100); `token-burner` = scene-aware, uncapped. Frames are opt-in: reach for them when the question is about something *shown* rather than said.
 - `--start T` / `--end T` — focus on a section. Accepts `SS`, `MM:SS`, or `HH:MM:SS`. When either is set, fps auto-scales denser (see "Focusing on a section" below).
 - `--timestamps T1,T2,…` — grab a frame at each of these absolute timestamps (`SS`, `MM:SS`, or `HH:MM:SS`). Use this after reading the transcript to capture deictic moments the presenter flags ("look here", "as you can see", "notice this") that visual selection alone may miss. See "Transcript-cue frames" below.
 - `--max-frames N` — override the preset cap for tighter token budget (e.g. `--max-frames 40`)
 - `--resolution W` — change frame width in px (default 512; bump to 1024 only if the user needs to read on-screen text)
 - `--fps F` — override auto-fps (clamped to 2 fps max)
 - `--out-dir DIR` — keep working files somewhere specific (default: an auto-generated tmp dir)
-- `--whisper groq|openai|doubao` — force a specific transcription backend. `groq`/`openai` = Whisper API; `doubao` = Doubao (Volcano Engine) streaming ASR 2.0, which is markedly better on Chinese and Chinese dialects and mixed zh/en. Default: the `WATCH_TRANSCRIBER` config, else prefer Groq → OpenAI. Reach for `doubao` when the audio is Chinese and Whisper's transcript looks weak.
+- `--asr deepinfra|deepinfra-cheap|deepinfra-whisper|groq|openai` — force a transcription backend. Default: the `WATCH_TRANSCRIBER` config, else the first provider with a key (`deepinfra` → `groq` → `openai`). See Transcription below for when to override.
 - `--ignore-captions` — ignore native captions and transcribe the audio with an ASR backend instead. Reach for this when captions came back but are **useless** (mostly `[Music]` / `foreign` / empty placeholders — songs, or non-English speech YouTube couldn't caption). Forces a download even at `transcript` detail so the audio is available. See "When native captions are useless" below.
-- `--no-whisper` — disable the transcription fallback entirely (frames-only if no captions)
+- `--no-asr` — disable the transcription fallback entirely (no transcript if captions are missing)
+- `--notes PATH` — write the report to a specific file instead of the default `~/watch-notes/<date>-<title>.md`
+- `--stdout` — print the report instead of writing it to a file. Only for debugging; it defeats the point of the file.
 - `--no-dedup` — keep near-duplicate frames. By default a frame-delta pass drops frames that are visually near-identical to the previous kept one (held slides, static screen recordings, paused video) so the frame budget goes to distinct content; the report's **Frames** line notes how many were dropped. Pass this only if the user needs every sampled frame (e.g. judging subtle frame-to-frame motion).
 
 ### Focusing on a section (higher frame rate)
@@ -181,27 +185,38 @@ python3 "${SKILL_DIR}/scripts/watch.py" "$URL" --start 2:15 --end 2:45 --fps 2
 python3 "${SKILL_DIR}/scripts/watch.py" "$URL" --start 1:12:00
 ```
 
-**Step 3 — Read every frame path the script lists.** The Read tool renders JPEGs directly as images for you. Read all frames in a single message (parallel tool calls) so you see them together. The frames are in chronological order with a `t=MM:SS` timestamp so you can align them to the transcript.
+**Step 3 — Read the report.** The script prints two lines: the report path and a one-line summary. `Read` that file. It holds the metadata, a `## Notes` placeholder, the frame paths, and the full timestamped transcript.
 
-**Step 4 — answer the user.** You now have two streams of evidence:
+For a long video the transcript alone can run tens of thousands of tokens. If the report is large and the user asked a narrow question, `Grep` the file for the relevant terms and `Read` only those line ranges instead of the whole thing.
+
+**Step 4 — Read every frame path the report lists**, if there are any (there are none at the default `transcript` detail). The Read tool renders JPEGs directly as images for you. Read all frames in a single message (parallel tool calls) so you see them together. The frames are in chronological order with a `t=MM:SS` timestamp so you can align them to the transcript.
+
+**Step 5 — write your notes into the report, then answer.** You now have two streams of evidence:
 - **Frames** — what's on screen at each timestamp
-- **Transcript** — what's said at each timestamp. The report's header shows the source (`captions` = yt-dlp pulled native subs; `whisper (groq)` / `whisper (openai)` / `doubao (streaming 2.0)` = transcribed by API).
+- **Transcript** — what's said at each timestamp. The report's header shows the source (`captions` = yt-dlp pulled native subs; `asr (deepinfra)` and friends = transcribed by API).
 
-**Before you answer, sanity-check the transcript when it came `via captions`.** Native captions are preferred because they're free, but "present" does not mean "usable" — yt-dlp will return a caption track that carries almost no information (a song that is all `[Music]`, non-English speech YouTube marked as `foreign`, or a near-empty track). The script cannot tell a rich transcript from a junk one — that judgment is yours. If the caption transcript is dominated by `[Music]`, `foreign`, empty lines, or filler for a video that clearly has real speech or lyrics, **do not answer from it** — re-run with `--ignore-captions` to transcribe the audio instead (see "When native captions are useless" under Transcription). This does not apply to ASR transcripts (`whisper …` / `doubao …`), which already came from the audio.
+**Before you answer, sanity-check the transcript when it came `via captions`.** Native captions are preferred because they're free, but "present" does not mean "usable" — yt-dlp will return a caption track that carries almost no information (a song that is all `[Music]`, non-English speech YouTube marked as `foreign`, or a near-empty track). The script cannot tell a rich transcript from a junk one — that judgment is yours. If the caption transcript is dominated by `[Music]`, `foreign`, empty lines, or filler for a video that clearly has real speech or lyrics, **do not answer from it** — re-run with `--ignore-captions` to transcribe the audio instead (see "When native captions are useless" under Transcription). This does not apply to ASR transcripts (`asr …`), which already came from the audio.
 
-If the user asked a specific question, answer it directly citing timestamps. If they didn't ask anything, summarize what happens in the video — structure, key moments, notable visuals, spoken content.
+Write the notes into the report file: `Edit` it, replacing the line `_Not written yet._` under `## Notes`. Keep the notes and the transcript they came from in one file so the user can check any claim against the source. Then give the user the same notes in chat, along with the report's path.
 
-This holds for `transcript` detail too: even with no frames, produce a **summary** like the other modes — do not paste the full transcript into chat. Synthesize structure, key moments, and spoken content with timestamps; quote only the lines that matter. Offer the raw transcript only if the user explicitly asks for it.
+Write the notes as:
+- One paragraph saying what the video is and what it covers.
+- The substance, grouped by topic, each point opening with its timestamp as a link back to the source. For a YouTube URL that is `[12:34](https://youtube.com/watch?v=ID&t=754)`; for Bilibili, `?t=754`. For a local file, plain `[12:34]` with no link.
+- Anything the speaker asserts that you would not repeat without a caveat.
 
-**Step 5 — clean up.** The script prints a working directory at the end. If the user isn't going to ask follow-ups about this video, delete it with `rm -rf <dir>`. If they might, leave it in place.
+Do not paste the full transcript into chat. Quote only the lines that carry the point. Offer the raw transcript only if the user asks.
+
+If the user asked a specific question rather than asking for notes, answer it directly with timestamps and skip the note-writing.
+
+**Step 6 — clean up.** The script prints a working directory at the end. If the user isn't going to ask follow-ups about this video, delete it with `rm -rf <dir>`. If they might, leave it in place. The report in `~/watch-notes/` is the durable artifact and stays.
 
 ## Detail and frames
 
 Default behavior comes from `~/.config/watch/.env`:
 
-- `WATCH_DETAIL=transcript|efficient|balanced|token-burner` (default: `balanced`)
+- `WATCH_DETAIL=transcript|efficient|balanced|token-burner` (default: `transcript`)
 
-At `transcript` detail, captions are enough to return a report without downloading video. If captions are missing, the script downloads audio only and tries Whisper. If no transcript can be produced, it reports the limitation clearly; re-run with `--detail balanced` for frames.
+At `transcript` detail — the default — captions are enough to return a report without downloading video. If captions are missing, the script downloads audio only and calls the ASR API. If no transcript can be produced, it reports the limitation clearly; re-run with `--detail balanced` for frames.
 
 At `efficient` detail, the script downloads the video and extracts **keyframes only** (`ffmpeg -skip_frame nokey`) — a near-instant pass that lands frames on scene cuts. If a clip has fewer than 4 keyframes it falls back to uniform sampling.
 
@@ -227,11 +242,20 @@ The script gets a timestamped transcript in one of two ways:
 
 1. **Native captions (free, preferred).** yt-dlp pulls manual or auto-generated subtitles from the source platform if available.
 2. **API fallback.** If no captions came back (or the source is a local file), the script extracts audio and sends it to whichever transcription backend is configured:
-   - **Groq** — `whisper-large-v3-turbo`. Preferred default: cheaper, faster. Extracts mono 16kHz mp3 (`ffmpeg -vn -ac 1 -ar 16000 -b:a 64k`, ~0.5 MB/min). Get a key at console.groq.com/keys.
-   - **OpenAI** — `whisper-1`. Fallback. Get a key at platform.openai.com/api-keys.
-   - **Doubao (Volcano Engine) streaming ASR 2.0** — `volc.seedasr.sauc`. Best for Chinese and Chinese dialects (普通话/粤语/上海话/四川话/陕西话…) and mixed zh/en; Whisper is weaker there. Streams mono 16kHz PCM straight to the WebSocket endpoint (no object storage needed), ~1 CNY/hour. Enable the service and get credentials at console.volcengine.com/speech/app. Set `DOUBAO_ASR_ACCESS_TOKEN` with optional `DOUBAO_ASR_APP_ID`, or set `DOUBAO_ASR_API_KEY` explicitly. When App ID is absent, `DOUBAO_ASR_ACCESS_TOKEN` is sent using the new-console `X-Api-Key` header.
 
-All credentials live in `~/.config/watch/.env`. Backend selection: `--whisper` wins, else `WATCH_TRANSCRIBER` (`auto`|`groq`|`openai`|`doubao`; `auto` = Whisper Groq→OpenAI). Set `WATCH_TRANSCRIBER=doubao` to make Doubao the default. Use `--no-whisper` to skip the fallback entirely. Cost note: Doubao ASR (~1 CNY/hr) is about the same price as Groq; the reason to pick it is Chinese-language accuracy, not cost.
+| `--asr` | Model | USD/hour of audio | Timestamp grain | Use for |
+| --- | --- | --- | --- | --- |
+| `deepinfra` | `Qwen/Qwen3-ASR-1.7B` | 0.027 | ~27s | **Default.** Everything, Chinese especially. |
+| `deepinfra-cheap` | `Qwen/Qwen3-ASR-0.6B` | 0.012 | ~27s | Long backlogs where cost matters more than proper nouns. |
+| `deepinfra-whisper` | `openai/whisper-large-v3-turbo` | 0.012 | ~6s | Non-Chinese audio where you need finer timestamps. |
+| `groq` | `whisper-large-v3-turbo` | 0.040 | ~2s | Finest timestamps. Non-Chinese only. |
+| `openai` | `whisper-1` | 0.360 | ~5s | Last resort. |
+
+All of them speak the same OpenAI `/audio/transcriptions` shape; the script extracts mono 16kHz mp3 (`ffmpeg -vn -ac 1 -ar 16000 -b:a 64k`, ~0.5 MB/min) and uploads it. Keys: deepinfra.com/dash/api_keys, console.groq.com/keys, platform.openai.com/api-keys.
+
+**Why Qwen3-ASR is the default rather than Whisper.** On a mixed Chinese/English podcast, Whisper returned the entire transcript with no punctuation at all and turned "ChatGPT" into 差子就列, "运行脚本" into 允许脚本, and "语言方面" into 预言方面. Qwen3-ASR got all of those right and punctuated the output. It is also cheaper than Groq. The one thing Whisper does better is timestamp granularity: Qwen3-ASR reports fixed ~27-second slices, Whisper reports ~2-6 second spans. For jumping to a topic that is fine; for quoting an exact line it is not.
+
+All credentials live in `~/.config/watch/.env`. Backend selection: `--asr` wins, else `WATCH_TRANSCRIBER` (`auto` or any provider name; `auto` walks `deepinfra` → `groq` → `openai` for the first key that is set). Use `--no-asr` to skip the fallback entirely.
 
 ### When native captions are useless → force ASR with `--ignore-captions`
 
@@ -244,29 +268,28 @@ The script prefers native captions because they're free, and by default the ASR 
 The script can't distinguish a rich transcript from a junk one, so it will hand you the captions and skip ASR. **You** make that call: read the transcript in the report (Step 4), and when it's dominated by `[Music]`, `foreign`, empty lines, or filler for a video that clearly has real speech or lyrics, re-run with `--ignore-captions` to skip the captions and transcribe the audio instead:
 
 ```bash
-# Japanese song — captions were just [Music]/foreign; Whisper handles the vocals
-python3 "${SKILL_DIR}/scripts/watch.py" "$URL" --ignore-captions --whisper groq
+# Japanese song — captions were just [Music]/foreign; ASR handles the vocals
+python3 "${SKILL_DIR}/scripts/watch.py" "$URL" --ignore-captions
 ```
 
 - `--ignore-captions` forces a download even at `transcript` detail (which normally skips the download when captions exist) so the audio is available to the ASR backend.
-- **Pick the backend for the language.** Use `--whisper doubao` for Chinese / Chinese dialects / mixed zh-en; use `--whisper groq` (or `openai`) for Japanese, Korean, European languages, and anything else Whisper handles well. Omit `--whisper` to use the configured default — but note that if the default is Doubao and the audio is *not* Chinese, you should override it. Doubao accepts `DOUBAO_ASR_ACCESS_TOKEN` alone as new-console `X-Api-Key`; add `DOUBAO_ASR_APP_ID` only for old-console two-header authentication.
+- **Leave the backend alone unless you have a reason.** The default handles Chinese, English, and mixed audio. Override with `--asr groq` only when the user needs to quote exact lines and the 27-second slices are too coarse, and the audio is not Chinese.
 - If you already downloaded the video on a prior run, point the re-run at the **local file** in the work dir so it doesn't re-download.
-- Only worth it when there's actually speech or lyrics to recover. A silent screen recording gains nothing from ASR — stay on frames (`--detail balanced`).
+- Only worth it when there's actually speech or lyrics to recover. A silent screen recording gains nothing from ASR — use `--detail balanced` for frames instead.
 
 ## Failure modes and handling
 
 - **Setup preflight failed** → run `python3 "${SKILL_DIR}/scripts/setup.py"` (auto-installs ffmpeg/yt-dlp via brew on macOS, scaffolds the `.env`). For API key, ask the user via `AskUserQuestion` and write it to `~/.config/watch/.env`.
-- **No transcript available** → captions missing AND (no Whisper key OR Whisper API failed). Script prints a hint pointing to setup. Proceed frames-only and tell the user.
+- **No transcript available** → captions missing AND (no ASR key OR the API failed). Script prints a hint pointing to setup. Tell the user; offer `--detail balanced` if frames would answer the question.
 - **Long video warning printed** → acknowledge it in your answer. Offer to re-run focused on a specific section via `--start`/`--end` rather than a sparse full-video scan.
 - **Download fails** → yt-dlp's error goes to stderr. If it's a login-required or region-locked video, tell the user plainly; do not keep retrying.
-- **Whisper request fails** → the error is printed to stderr (likely: invalid key or rate limit). Audio over the API's 25 MB upload cap is split into chunks and transcribed automatically, so length alone won't fail it; if some chunks fail the transcript is partial and the dropped chunks are noted on stderr. The report will say "none available" only if every chunk fails. You can retry with `--whisper openai` if Groq failed (or vice versa).
-- **Doubao ASR fails** → the error (with the Volcano `logid` and status code) is printed to stderr. Common causes: the streaming ASR 2.0 service is not enabled in the console, wrong credentials, or a wrong resource id. The `logid` is the key to open a support ticket. If Doubao is unavailable, retry with `--whisper groq` to fall back to Whisper.
+- **ASR request fails** → the error is printed to stderr (likely: invalid key or rate limit). Audio over the 24 MB upload cap is split into chunks and transcribed automatically, so length alone won't fail it — at 64 kbps that cap is a little under an hour per request. If some chunks fail the transcript is partial and the dropped chunks are noted on stderr. The report says "none available" only if every chunk fails. Retry with a different `--asr` provider.
 
 ## Token efficiency
 
-This skill burns tokens primarily on frames. Order of magnitude:
+Frames dominate, which is why they are off by default. Order of magnitude:
 - 80 frames at 512px wide is roughly 50-80k image tokens depending on aspect ratio.
-- The transcript is cheap (a few thousand tokens at most for a 10-minute video).
+- The transcript is cheap in money (an hour of audio costs about $0.03) but not in context: an hour of speech is roughly 10-20k tokens. That is why the report goes to a file — `Grep` it when the question is narrow.
 - Bumping `--resolution` to 1024 roughly quadruples the image tokens per frame. Only do it when necessary.
 
 If you already watched a video this session and the user asks a follow-up, do **not** re-run the script — you already have the frames and transcript in context. Just answer from what you have.
@@ -275,20 +298,19 @@ If you already watched a video this session and the user asks a follow-up, do **
 
 **What this skill does:**
 - Runs `yt-dlp` locally to download the video and pull native captions when the source supports them (public data; the request goes directly to whatever host the URL points at)
-- Runs `ffmpeg` / `ffprobe` locally to extract frames as JPEGs and, when Whisper is needed, a mono 16 kHz audio clip
-- Sends the extracted audio clip to Groq's Whisper API (`api.groq.com/openai/v1/audio/transcriptions`) when `GROQ_API_KEY` is set (preferred — cheaper, faster)
-- Sends the extracted audio clip to OpenAI's audio transcription API (`api.openai.com/v1/audio/transcriptions`) when `OPENAI_API_KEY` is set and Groq is not, or when `--whisper openai` is forced
-- Streams the extracted audio (mono 16 kHz PCM) to Doubao / Volcano Engine streaming ASR over WebSocket (`wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream`) when the `doubao` transcriber is selected and Doubao credentials are set
+- Runs `ffmpeg` / `ffprobe` locally to extract a mono 16 kHz audio clip and, when frames are requested, JPEGs
+- Sends the extracted audio clip to exactly one transcription endpoint, chosen by the resolved backend: `api.deepinfra.com/v1/openai/audio/transcriptions`, `api.groq.com/openai/v1/audio/transcriptions`, or `api.openai.com/v1/audio/transcriptions`
+- Writes the report to `~/watch-notes/` (or `WATCH_NOTES_DIR`, or the path given to `--notes`)
 - Writes the downloaded video, frames, audio, and an intermediate transcript to a working directory under the system temp dir (or `--out-dir` if specified) so Claude can `Read` them
 - Reads / creates `~/.config/watch/.env` (mode `0600`) to store the transcription credentials and a `SETUP_COMPLETE` marker. As a fallback, also reads `.env` in the current working directory
 
 **What this skill does NOT do:**
-- Does not upload the video itself to any API — only the extracted audio goes out, and only when native captions are missing AND the fallback is not disabled with `--no-whisper`
+- Does not upload the video itself to any API — only the extracted audio goes out, and only when native captions are missing AND the fallback is not disabled with `--no-asr`
 - Does not post or modify anything, and only reads public data — except that if you set `WATCH_YTDLP_COOKIES_FROM_BROWSER`/`WATCH_YTDLP_COOKIES_FILE` (needed for gated sites like Bilibili), yt-dlp will send those browser cookies to the video host. Setting `WATCH_YTDLP_REMOTE_COMPONENTS` (off by default) makes yt-dlp fetch+run a JS challenge solver component from its GitHub for YouTube URLs — an opt-in for when YouTube's anti-bot blocks a download
-- Does not share credentials between providers (Groq key only goes to `api.groq.com`, OpenAI key only to `api.openai.com`, Doubao credentials only to `openspeech.bytedance.com`)
+- Does not share credentials between providers: each key is sent only to its own provider's host
 - Does not log, cache, or write credentials to stdout, stderr, or output files
 - Does not persist anything outside the working directory and `~/.config/watch/.env` — clean up the working directory when you're done (Step 5)
 
-**Bundled scripts:** `scripts/watch.py` (entry point), `scripts/download.py` (yt-dlp wrapper), `scripts/frames.py` (ffmpeg frame extraction), `scripts/transcribe.py` (caption selection + Whisper orchestration), `scripts/whisper.py` (Groq / OpenAI clients), `scripts/doubao.py` (Doubao streaming ASR client), `scripts/setup.py` (preflight + installer)
+**Bundled scripts:** `scripts/watch.py` (entry point), `scripts/download.py` (yt-dlp wrapper), `scripts/frames.py` (ffmpeg frame extraction), `scripts/transcribe.py` (caption parsing), `scripts/asr.py` (provider registry + chunking + upload), `scripts/config.py`, `scripts/setup.py` (preflight + installer)
 
 Review scripts before first use to verify behavior.

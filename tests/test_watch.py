@@ -19,7 +19,7 @@ def _run(clip: Path, *args: str, env_extra: dict | None = None) -> str:
         env["HOME"] = test_home
         env["USERPROFILE"] = test_home  # Windows
         proc = subprocess.run(
-            [sys.executable, str(WATCH), str(clip), "--no-whisper", *args],
+            [sys.executable, str(WATCH), str(clip), "--no-asr", "--stdout", *args],
             capture_output=True, text=True, env=env,
         )
     assert proc.returncode == 0, proc.stderr
@@ -54,10 +54,12 @@ def test_flag_overrides_env(cut_clip: Path):
     assert "(keyframe" in out
 
 
-def test_default_is_balanced(cut_clip: Path):
+def test_default_is_transcript_and_extracts_no_frames(cut_clip: Path):
+    """Frames are opt-in. A default run reports transcript detail and skips
+    extraction entirely, so a plain `/watch <url>` never pays for frame tokens."""
     out = _run(cut_clip)  # no flag, WATCH_DETAIL cleared
-    assert "**Detail:** balanced" in out
-    assert "(scene" in out
+    assert "**Detail:** transcript" in out
+    assert "**Frames:** skipped (transcript detail)" in out
 
 
 def test_timestamps_add_cue_frames_to_detail(cut_clip: Path):
@@ -78,12 +80,12 @@ def _frame_lines(out: str) -> int:
 
 
 def test_dedup_collapses_static_by_default(static_clip: Path):
-    out = _run(static_clip)  # solid blue → identical frames collapse to one
+    out = _run(static_clip, "--detail", "balanced")  # solid blue → identical frames collapse to one
     assert "near-duplicate" in out
     assert _frame_lines(out) == 1
 
 
 def test_no_dedup_preserves_static_frames(static_clip: Path):
-    out = _run(static_clip, "--no-dedup")
+    out = _run(static_clip, "--detail", "balanced", "--no-dedup")
     assert "near-duplicate" not in out
     assert _frame_lines(out) > 1

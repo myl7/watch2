@@ -255,9 +255,9 @@ def split_audio(
 
 
 def _build_multipart(fields: dict[str, str], file_path: Path) -> tuple[bytes, str]:
-    """Assemble a multipart/form-data body the Whisper APIs accept.
+    """Assemble a multipart/form-data body the transcription APIs accept.
 
-    Whisper's multipart upload is small and predictable — doing it by hand
+    The multipart upload is small and predictable — doing it by hand
     keeps us on pure stdlib instead of pulling requests/groq/openai SDKs.
     """
     boundary = f"----WatchBoundary{uuid.uuid4().hex}"
@@ -322,12 +322,12 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
 
             # 4xx other than 429 are client errors — no retry will fix them.
             if 400 <= exc.code < 500 and exc.code != 429:
-                raise SystemExit(f"Whisper request failed: {exc}{detail}")
+                raise SystemExit(f"ASR request failed: {exc}{detail}")
 
             if exc.code == 429:
                 rate_limit_hits += 1
                 if rate_limit_hits >= MAX_429_RETRIES:
-                    raise SystemExit(f"Whisper request failed: {exc}{detail}")
+                    raise SystemExit(f"ASR request failed: {exc}{detail}")
                 delay = _retry_after(exc) or RETRY_BASE_DELAY * (2 ** attempt) + 1
             else:
                 delay = RETRY_BASE_DELAY * (2 ** attempt)
@@ -355,10 +355,10 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
         try:
             return json.loads(payload)
         except json.JSONDecodeError as exc:
-            raise SystemExit(f"Whisper returned non-JSON response: {exc}: {payload[:200]}")
+            raise SystemExit(f"ASR returned non-JSON response: {exc}: {payload[:200]}")
 
     raise SystemExit(
-        f"Whisper request failed after {MAX_ATTEMPTS} attempts: {last_exc}{last_detail}"
+        f"ASR request failed after {MAX_ATTEMPTS} attempts: {last_exc}{last_detail}"
     )
 
 
@@ -388,7 +388,7 @@ def _retry_after(exc: urllib.error.HTTPError) -> float | None:
 def shift_segments(segments: list[dict], offset_seconds: float) -> list[dict]:
     """Return a copy of segments with start/end shifted by offset_seconds.
 
-    Each chunk is transcribed in isolation, so Whisper returns 0-based timestamps
+    Each chunk is transcribed in isolation, so the API returns 0-based timestamps
     per chunk; shifting by the chunk's offset stitches them into source time.
     """
     if offset_seconds == 0:
@@ -404,7 +404,7 @@ def shift_segments(segments: list[dict], offset_seconds: float) -> list[dict]:
 
 
 def _segments_from_response(data: dict) -> list[dict]:
-    """Convert Whisper verbose_json into our {start, end, text} segment format."""
+    """Convert an OpenAI verbose_json response into our {start, end, text} segment format."""
     out: list[dict] = []
     for seg in data.get("segments") or []:
         text = (seg.get("text") or "").strip()
@@ -452,7 +452,7 @@ def transcribe_chunks(
         )
 
     if failures == len(chunks):
-        raise SystemExit("Whisper failed on every audio chunk")
+        raise SystemExit("ASR failed on every audio chunk")
     return segments
 
 
@@ -505,7 +505,7 @@ def transcribe_video(
 
     if audio_bytes <= MAX_UPLOAD_BYTES:
         print(
-            f"[watch] audio: {audio_bytes / 1024:.0f} kB — uploading to {backend} Whisper…",
+            f"[watch] audio: {audio_bytes / 1024:.0f} kB — uploading to {backend}…",
             file=sys.stderr,
         )
         segments = transcribe_one(audio_path)
@@ -521,7 +521,7 @@ def transcribe_video(
         segments = transcribe_chunks(chunks, transcribe_one)
 
     if not segments:
-        raise SystemExit("Whisper returned no transcript segments")
+        raise SystemExit("ASR returned no transcript segments")
 
     segments = shift_segments(segments, range_offset)
     print(f"[watch] transcribed {len(segments)} segments via {backend}", file=sys.stderr)

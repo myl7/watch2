@@ -3,20 +3,30 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from asr import PREFERENCE, PROVIDERS  # noqa: E402
 
 
 CONFIG_DIR = Path.home() / ".config" / "watch"
 CONFIG_FILE = CONFIG_DIR / ".env"
 
-DEFAULT_DETAIL = "balanced"
+DEFAULT_DETAIL = "transcript"
+
+# Where reports land. The transcript of an hour-long video is tens of thousands
+# of tokens; it goes to a file so the agent reads what it needs instead of
+# taking the whole thing through stdout.
+DEFAULT_NOTES_DIR = Path.home() / "watch-notes"
 
 DETAILS = {"transcript", "efficient", "balanced", "token-burner"}
 
 DEFAULT_TRANSCRIBER = "auto"
 
-# auto = Whisper (Groq→OpenAI); doubao/groq/openai force one backend.
-TRANSCRIBERS = {"auto", "groq", "openai", "doubao"}
+# auto walks PREFERENCE until a key turns up; any provider name forces that one.
+TRANSCRIBERS = {"auto", *PROVIDERS}
 
 
 def read_env_file(path: Path | None = None) -> dict[str, str]:
@@ -69,9 +79,16 @@ def get_config() -> dict[str, object]:
     if transcriber not in TRANSCRIBERS:
         transcriber = DEFAULT_TRANSCRIBER
 
+    notes_dir = (
+        os.environ.get("WATCH_NOTES_DIR")
+        or file_values.get("WATCH_NOTES_DIR")
+        or ""
+    ).strip()
+
     return {
         "detail": detail,
         "transcriber": transcriber,
+        "notes_dir": Path(notes_dir).expanduser() if notes_dir else DEFAULT_NOTES_DIR,
         "config_file": str(CONFIG_FILE),
     }
 

@@ -7,8 +7,10 @@ then Reads each frame path to see the video.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 
@@ -19,8 +21,26 @@ from config import frame_cap, get_config  # noqa: E402
 from download import download, fetch_captions, is_url  # noqa: E402
 from frames import MAX_FPS, auto_fps, auto_fps_focus, extract_at_timestamps, extract_keyframes, extract_scene_or_uniform, format_time, get_metadata, merge_frames, parse_time, parse_timestamps  # noqa: E402
 from transcribe import context_window, filter_range, format_transcript, parse_vtt  # noqa: E402
-from whisper import load_api_key, transcribe_video  # noqa: E402
-import doubao  # noqa: E402
+from asr import PROVIDERS, load_api_key, transcribe_video  # noqa: E402
+
+
+def _slugify(text: str, limit: int = 60) -> str:
+    """Filename-safe stem. Keeps CJK and letters, collapses everything else."""
+    cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", "-", text, flags=re.UNICODE).strip("-")
+    return (cleaned[:limit].rstrip("-") or "video")
+
+
+def resolve_report_path(explicit: str | None, notes_dir: Path, info: dict, source: str) -> Path:
+    """Where this run's report goes.
+
+    Named after the video rather than the run so re-watching the same source
+    overwrites its own notes instead of littering the directory.
+    """
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    title = info.get("title") or Path(source).stem or "video"
+    stamp = datetime.now().strftime("%Y-%m-%d")
+    return notes_dir.expanduser() / f"{stamp}-{_slugify(str(title))}.md"
 
 
 def main() -> int:
@@ -51,17 +71,32 @@ def main() -> int:
     ap.add_argument("--end", type=str, default=None, help="Range end (SS, MM:SS, or HH:MM:SS)")
     ap.add_argument("--out-dir", type=str, default=None, help="Working directory (default: tmp)")
     ap.add_argument(
-        "--no-whisper",
-        action="store_true",
-        help="Disable Whisper fallback. Report frames-only if no captions available.",
+        "--notes",
+        type=str,
+        default=None,
+        help="Write the report to this markdown file. Default: "
+             "$WATCH_NOTES_DIR/<date>-<title>.md (~/watch-notes if unset).",
     )
     ap.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print the report instead of writing it to a file.",
+    )
+    ap.add_argument(
+        "--no-asr",
+        "--no-whisper",
+        dest="no_whisper",
+        action="store_true",
+        help="Disable the ASR fallback. Report frames-only if no captions available.",
+    )
+    ap.add_argument(
+        "--asr",
         "--whisper",
-        choices=["groq", "openai", "doubao"],
+        dest="whisper",
+        choices=sorted(PROVIDERS),
         default=None,
-        help="Force a transcription backend. groq/openai = Whisper API; doubao = "
-             "Doubao (Volcano Engine) streaming ASR 2.0 (better for Chinese/dialects). "
-             "Default: WATCH_TRANSCRIBER, else prefer Groq → OpenAI.",
+        help="Force a transcription backend. Default: WATCH_TRANSCRIBER, else the "
+             "first provider in asr.PREFERENCE with a key (deepinfra \u2192 groq \u2192 openai).",
     )
     ap.add_argument(
         "--ignore-captions",
@@ -262,68 +297,54 @@ def main() -> int:
             print(f"[watch] subtitle parse failed: {exc}", file=sys.stderr)
 
     # Resolve the transcription backend: explicit --whisper wins, else the
-    # WATCH_TRANSCRIBER config ("auto" means Whisper Groq→OpenAI).
+    # WATCH_TRANSCRIBER config ("auto" walks asr.PREFERENCE for the first key).
     requested = args.whisper
     if requested is None and config["transcriber"] != "auto":
         requested = str(config["transcriber"])
 
     if not transcript_segments and not args.no_whisper and video_path and meta.get("has_audio"):
-        if requested == "doubao":
-            creds = doubao.load_credentials()
-            if creds:
-                try:
-                    all_segments, used_backend = doubao.transcribe_video(
-                        video_path,
-                        work / "audio.pcm",
-                        headers=creds,
-                        start_seconds=ctx_start if focused else None,
-                        end_seconds=ctx_end if focused else None,
-                    )
-                    transcript_segments = filter_range(all_segments, ctx_start, ctx_end) if focused else all_segments
-                    transcript_text = format_transcript(transcript_segments)
-                    transcript_source = used_backend
-                except SystemExit as exc:
-                    print(f"[watch] Doubao ASR failed: {exc}", file=sys.stderr)
-            else:
-                setup_py = SCRIPT_DIR / "setup.py"
-                print(
-                    "[watch] doubao transcriber selected but no Doubao credentials found "
-                    f"(set DOUBAO_ASR_ACCESS_TOKEN or DOUBAO_ASR_API_KEY) — "
-                    f"run `python3 {setup_py}`",
-                    file=sys.stderr,
+        backend, api_key = load_api_key(requested)
+        if backend and api_key:
+            try:
+                all_segments, used_backend = transcribe_video(
+                    video_path,
+                    work / "audio.mp3",
+                    backend=backend,
+                    api_key=api_key,
+                    start_seconds=ctx_start if focused else None,
+                    end_seconds=ctx_end if focused else None,
                 )
+                transcript_segments = filter_range(all_segments, ctx_start, ctx_end) if focused else all_segments
+                transcript_text = format_transcript(transcript_segments)
+                transcript_source = f"asr ({used_backend})"
+            except SystemExit as exc:
+                print(f"[watch] transcription failed: {exc}", file=sys.stderr)
         else:
-            backend, api_key = load_api_key(requested)
-            if backend and api_key:
-                try:
-                    all_segments, used_backend = transcribe_video(
-                        video_path,
-                        work / "audio.mp3",
-                        backend=backend,
-                        api_key=api_key,
-                        start_seconds=ctx_start if focused else None,
-                        end_seconds=ctx_end if focused else None,
-                    )
-                    transcript_segments = filter_range(all_segments, ctx_start, ctx_end) if focused else all_segments
-                    transcript_text = format_transcript(transcript_segments)
-                    transcript_source = f"whisper ({used_backend})"
-                except SystemExit as exc:
-                    print(f"[watch] whisper fallback failed: {exc}", file=sys.stderr)
-            else:
-                hint = (
-                    f"--whisper {requested} was set but the matching API key is missing"
-                    if requested else
-                    "no subtitles and no Whisper API key found"
-                )
-                setup_py = SCRIPT_DIR / "setup.py"
-                print(
-                    f"[watch] {hint} — run `python3 {setup_py}` to enable the Whisper fallback",
-                    file=sys.stderr,
-                )
+            hint = (
+                f"--asr {requested} was set but the matching API key is missing"
+                if requested else
+                "no subtitles and no ASR API key found"
+            )
+            setup_py = SCRIPT_DIR / "setup.py"
+            print(
+                f"[watch] {hint} — run `python3 {setup_py}` to enable transcription",
+                file=sys.stderr,
+            )
     elif not transcript_segments and video_path and not meta.get("has_audio"):
         print("[watch] no audio stream found — proceeding without transcription", file=sys.stderr)
 
     info = dl.get("info") or {}
+
+    report_path = resolve_report_path(args.notes, config["notes_dir"], info, args.source)
+    report_file = None
+    saved_stdout = sys.stdout
+    if not args.stdout:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_file = report_path.open("w", encoding="utf-8")
+        # Everything below prints the report; progress already goes to stderr.
+        # main() has a single exit, and an exception here kills the process
+        # anyway, so a plain swap is enough — no context manager needed.
+        sys.stdout = report_file
 
     print()
     print("# watch: video report")
@@ -392,6 +413,12 @@ def main() -> int:
         )
 
     print()
+    # Seeded so the agent has an unambiguous anchor to replace with its notes,
+    # keeping the summary and the transcript it came from in one file.
+    print("## Notes")
+    print()
+    print("_Not written yet._")
+    print()
     print("## Frames")
     print()
     if frames:
@@ -429,7 +456,7 @@ def main() -> int:
         print("```")
     elif detail == "transcript":
         print(
-            "_No transcript available at transcript detail. Captions were missing and Whisper was "
+            "_No transcript available at transcript detail. Captions were missing and ASR was "
             "unavailable or failed, so there is no visual fallback here. Re-run with "
             "`--detail balanced` for frames._"
         )
@@ -439,14 +466,24 @@ def main() -> int:
         setup_py = SCRIPT_DIR / "setup.py"
         print(
             "_No transcript available — proceed with frames only. "
-            "Captions were missing and the Whisper fallback was unavailable "
-            "(no API key set, or `--no-whisper` was used). "
-            f"Run `python3 {setup_py}` to enable Whisper, then re-run._"
+            "Captions were missing and the ASR fallback was unavailable "
+            "(no API key set, or `--no-asr` was used). "
+            f"Run `python3 {setup_py}` to enable ASR, then re-run._"
         )
 
     print()
     print("---")
     print(f"_Work dir: `{work}` — delete when done._")
+
+    if report_file is not None:
+        sys.stdout = saved_stdout
+        report_file.close()
+        frame_note = f"{len(frames)} frames" if frames else "no frames"
+        print(f"[watch] report: {report_path}")
+        print(
+            f"[watch] {len(transcript_segments)} transcript segments "
+            f"({transcript_source}), {frame_note}, {format_time(full_duration)}"
+        )
 
     return 0
 

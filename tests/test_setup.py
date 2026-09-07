@@ -17,9 +17,7 @@ def _run(args, *, home=None, extra_env=None):
     # Don't let a real key in the developer's shell env leak into the test.
     env.pop("GROQ_API_KEY", None)
     env.pop("OPENAI_API_KEY", None)
-    env.pop("DOUBAO_ASR_APP_ID", None)
-    env.pop("DOUBAO_ASR_ACCESS_TOKEN", None)
-    env.pop("DOUBAO_ASR_API_KEY", None)
+    env.pop("DEEPINFRA_API_KEY", None)
     env.pop("SETUP_COMPLETE", None)
     if home is not None:
         env["HOME"] = str(home)
@@ -46,7 +44,7 @@ def test_json_reports_watch_detail(tmp_path):
     proc = _run(["--json"], home=tmp_path)
     assert proc.returncode == 0, proc.stderr
     data = json.loads(proc.stdout)
-    assert data["watch_detail"] == "balanced"
+    assert data["watch_detail"] == "transcript"
 
 
 def test_keyless_completed_setup_proceeds_silently(tmp_path):
@@ -84,50 +82,6 @@ def test_key_present_is_ready(tmp_path):
     assert js["status"] == "ready"
     assert js["can_proceed"] is True
     assert js["whisper_backend"] == "groq"
-
-
-def test_doubao_creds_alone_are_not_ready_under_auto_transcriber(tmp_path):
-    """Regression guard: watch.py's `auto` transcriber (the default) only ever
-    tries Whisper (Groq -> OpenAI), never Doubao — so credentials alone must
-    NOT report `ready`/`has_api_key` without WATCH_TRANSCRIBER=doubao, or the
-    agent skips setup per SKILL.md's `can_proceed` branch and /watch silently
-    comes back frames-only on the first video with no captions."""
-    _write_env(tmp_path, "DOUBAO_ASR_APP_ID=app\nDOUBAO_ASR_ACCESS_TOKEN=token\n")
-    chk = _run(["--check"], home=tmp_path)
-    assert chk.returncode == 3, chk.stderr
-
-    js = json.loads(_run(["--json"], home=tmp_path).stdout)
-    assert js["has_api_key"] is False
-    assert js["status"] == "needs_key"
-    assert js["can_proceed"] is False
-
-
-def test_doubao_creds_are_ready_when_transcriber_is_doubao(tmp_path):
-    _write_env(
-        tmp_path,
-        "DOUBAO_ASR_APP_ID=app\nDOUBAO_ASR_ACCESS_TOKEN=token\nWATCH_TRANSCRIBER=doubao\n",
-    )
-    chk = _run(["--check"], home=tmp_path)
-    assert chk.returncode == 0, chk.stderr
-
-    js = json.loads(_run(["--json"], home=tmp_path).stdout)
-    assert js["status"] == "ready"
-    assert js["can_proceed"] is True
-    assert js["whisper_backend"] == "doubao"
-
-
-def test_doubao_token_only_is_ready_when_transcriber_is_doubao(tmp_path):
-    _write_env(
-        tmp_path,
-        "DOUBAO_ASR_ACCESS_TOKEN=token\nWATCH_TRANSCRIBER=doubao\n",
-    )
-    chk = _run(["--check"], home=tmp_path)
-    assert chk.returncode == 0, chk.stderr
-
-    js = json.loads(_run(["--json"], home=tmp_path).stdout)
-    assert js["status"] == "ready"
-    assert js["can_proceed"] is True
-    assert js["whisper_backend"] == "doubao"
 
 
 def test_groq_key_ignored_when_transcriber_pinned_to_openai(tmp_path):
