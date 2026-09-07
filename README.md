@@ -98,7 +98,7 @@ Update yt-dlp first. Site extractors break constantly and the fix ships in a rel
 pipx upgrade yt-dlp   # or: brew upgrade yt-dlp / pip install -U yt-dlp
 ```
 
-Bilibili needs no special handling for public videos. Do not set a browser user agent for it: a bare request to a video page works, and a browser UA draws HTTP 412. (Bilibili's search endpoint is the opposite, but this skill takes URLs, not queries.)
+Bilibili returns HTTP 412 when a rate-limit bucket is tripped. The bucket is per (IP, User-Agent) and recovers in about ten minutes, which is why the same request can succeed bare and fail with a browser UA, then swap a few minutes later. There is no UA that always works, so the skill rotates through several on a 412. Leave `WATCH_YTDLP_USER_AGENT` unset: pinning one turns the rotation off. If every attempt fails, wait ten minutes. Cookies do not help; they are for member-only content.
 
 YouTube occasionally needs `WATCH_YTDLP_REMOTE_COMPONENTS=ejs:github`, which lets yt-dlp fetch and run its remote JS challenge solver. It is off by default because it downloads and executes a component at runtime.
 

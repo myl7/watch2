@@ -27,11 +27,10 @@ def _ytdlp_auth_args() -> list[str]:
     - WATCH_YTDLP_USER_AGENT: send this UA instead of yt-dlp's own
 
     The UA is sent only when explicitly configured. An earlier version forced a
-    hardcoded browser UA whenever a cookie source was set, on the theory that
-    Bilibili rejects yt-dlp's own UA with HTTP 412. That is now backwards:
-    against a current yt-dlp, a bare request to a Bilibili video page succeeds
-    and overriding the UA is what draws the 412. (Bilibili's *search* endpoint
-    still wants a browser UA, but this skill takes URLs, not search queries.)
+    hardcoded browser UA whenever a cookie source was set, which coupled two
+    unrelated things: cookies are for gated content, while Bilibili's HTTP 412
+    is a per-(IP, UA) rate limit that no fixed UA escapes. _run_ytdlp handles
+    the 412 by rotating identities; pinning a UA here opts out of that.
     """
     file_values = read_env_file()
 
@@ -62,6 +61,10 @@ _DEFAULT_SUB_LANGS = "zh-Hans,zh-Hant,zh,zh-CN,zh-TW,zh-HK,yue,en-orig,en,en-US,
 def _sub_langs() -> str:
     file_values = read_env_file()
     return os.environ.get("WATCH_SUB_LANGS") or file_values.get("WATCH_SUB_LANGS") or _DEFAULT_SUB_LANGS
+
+
+def _is_bilibili(url: str) -> bool:
+    return "bilibili.com" in url or "b23.tv" in url
 
 
 def _is_youtube(url: str) -> bool:
@@ -163,6 +166,67 @@ def _pick_video(out_dir: Path) -> Path | None:
     return None
 
 
+# Bilibili rate-limits per (IP, User-Agent) and answers a tripped bucket with
+# HTTP 412. Each distinct UA gets its own bucket and they recover in roughly ten
+# minutes, so the way through is to try another identity rather than to pick the
+# "correct" one — there isn't one. Measured 2026-09-07 against one video page:
+# a bare request and the UA used minutes earlier both returned 412 while an
+# unused UA went through on the first attempt, and the same pairing had been
+# reversed ten minutes before that.
+_UA_ROTATION: tuple[str | None, ...] = (
+    None,  # yt-dlp's own UA
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) "
+    "Gecko/20100101 Firefox/131.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+)
+
+
+def _run_ytdlp(cmd: list[str], url: str, succeeded) -> subprocess.CompletedProcess:
+    """Run yt-dlp, rotating the UA past Bilibili's per-UA 412 rate limit.
+
+    `succeeded` reports whether the attempt produced what the caller wanted;
+    yt-dlp's exit code alone is not enough, since it exits non-zero when a
+    subtitle variant fails even though the video downloaded.
+
+    Only Bilibili rotates, and only when the user has not pinned a UA of their
+    own — an explicit WATCH_YTDLP_USER_AGENT is a decision to respect, not a
+    starting point. Every other site keeps the single-attempt behavior.
+    """
+    file_values = read_env_file()
+    pinned = os.environ.get("WATCH_YTDLP_USER_AGENT") or file_values.get(
+        "WATCH_YTDLP_USER_AGENT"
+    )
+    rotate = _is_bilibili(url) and not pinned
+    attempts: tuple[str | None, ...] = _UA_ROTATION if rotate else (pinned,)
+
+    result = None
+    for i, ua in enumerate(attempts):
+        attempt_cmd = list(cmd)
+        if ua:
+            attempt_cmd = [attempt_cmd[0], "--user-agent", ua, *attempt_cmd[1:]]
+        # stdout carries the progress bar and stays live; stderr is captured so
+        # a 412 can be recognized, then echoed so nothing is swallowed.
+        result = subprocess.run(
+            attempt_cmd, stdout=sys.stderr, stderr=subprocess.PIPE, text=True
+        )
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        if succeeded():
+            return result
+        if not rotate or "412" not in (result.stderr or ""):
+            return result
+        if i + 1 < len(attempts):
+            print(
+                f"[watch] Bilibili returned 412 (per-UA rate limit); "
+                f"retrying as a different client ({i + 2}/{len(attempts)})…",
+                file=sys.stderr,
+            )
+    return result
+
+
 def fetch_captions(url: str, out_dir: Path) -> dict:
     """Fetch metadata and best available VTT captions without downloading video."""
     if shutil.which("yt-dlp") is None:
@@ -187,8 +251,9 @@ def fetch_captions(url: str, out_dir: Path) -> dict:
         "--",
         url,
     ]
-    subprocess.run(cmd, stdout=sys.stderr, stderr=sys.stderr)
-    info = _read_info(out_dir / "video.info.json", url)
+    info_path = out_dir / "video.info.json"
+    _run_ytdlp(cmd, url, succeeded=info_path.exists)
+    info = _read_info(info_path, url)
     subtitle = _pick_subtitle(out_dir, prefer_lang=info.get("language"))
     return {
         "video_path": None,
@@ -216,10 +281,6 @@ def _read_info(info_path: Path, url: str) -> dict:
     return info
 
 
-def _is_bilibili(url: str) -> bool:
-    return "bilibili.com" in url or "b23.tv" in url
-
-
 def _download_failure_hint(url: str) -> str:
     """What to try when yt-dlp came back empty, most likely cause first.
 
@@ -245,9 +306,9 @@ def _download_failure_hint(url: str) -> str:
         )
     if _is_bilibili(url):
         hints.append(
-            "For Bilibili, do NOT set WATCH_YTDLP_USER_AGENT: a bare request "
-            "works and a browser UA draws HTTP 412. Cookies "
-            "(WATCH_YTDLP_COOKIES_FROM_BROWSER) are only needed for "
+            "Every UA in the rotation hit Bilibili's per-(IP, UA) rate limit. "
+            "Buckets recover in about ten minutes — wait and retry. Cookies "
+            "(WATCH_YTDLP_COOKIES_FROM_BROWSER) do not help here; they are for "
             "member-only or high-bitrate formats."
         )
     return (" " + " ".join(hints)) if hints else ""
@@ -287,7 +348,7 @@ def download_url(
 
     # yt-dlp may exit non-zero if a subtitle variant fails (e.g. 429) even when
     # the video itself downloaded fine. Treat "video file present" as success.
-    result = subprocess.run(cmd, stdout=sys.stderr, stderr=sys.stderr)
+    result = _run_ytdlp(cmd, url, succeeded=lambda: _pick_video(out_dir) is not None)
     video = _pick_video(out_dir)
     if video is None:
         raise SystemExit(

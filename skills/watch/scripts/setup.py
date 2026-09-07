@@ -77,8 +77,9 @@ OPENAI_API_KEY=
 # most download failures. Cookies are for member-only or age-gated content.
 # Values: chrome | firefox | chromium | edge | brave | chrome:ProfileName
 #
-# Do NOT set WATCH_YTDLP_USER_AGENT for Bilibili: a bare request to a video
-# page works and a browser UA draws HTTP 412.
+# Leave WATCH_YTDLP_USER_AGENT unset for Bilibili. Its HTTP 412 is a rate limit
+# bucketed per (IP, User-Agent) that recovers in ~10 min, so the skill rotates
+# through several UAs on 412; pinning one turns that off.
 # WATCH_YTDLP_COOKIES_FROM_BROWSER=chrome
 # WATCH_YTDLP_COOKIES_FILE=/path/to/cookies.txt
 # WATCH_YTDLP_USER_AGENT=
