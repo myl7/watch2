@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev-sync.sh — copy this working tree into the installed /watch plugin cache so
+# dev-sync.sh — copy this working tree into the installed /watch2 plugin cache so
 # local edits are picked up by Claude Code without publishing a release.
 #
 # The install path is resolved from ~/.claude/plugins/installed_plugins.json, so
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_KEY="watch@watch2"
+PLUGIN_KEY="watch2@watch2"
 INSTALLED_JSON="${HOME}/.claude/plugins/installed_plugins.json"
 
 DRY_RUN=()

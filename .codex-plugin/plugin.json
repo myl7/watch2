@@ -1,6 +1,6 @@
 {
-  "name": "watch",
-  "version": "0.3.0",
+  "name": "watch2",
+  "version": "0.4.0",
   "description": "Let Claude watch a video. Downloads with yt-dlp, transcribes with Qwen3-ASR (or native captions, free), optionally extracts frames with ffmpeg, and writes a timestamped markdown report Claude reads and turns into notes.",
   "author": {
     "name": "myl7"
@@ -25,7 +25,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "watch",
+    "displayName": "watch2",
     "shortDescription": "Give Claude a video input — paste a URL or path and ask about it.",
     "longDescription": "watch adds a skill that lets the agent watch any video: it downloads with yt-dlp, extracts auto-scaled frames with ffmpeg, pulls a timestamped transcript from native captions (or the Whisper API as a fallback), and hands frames + transcript to the model so it can answer questions grounded in what's actually on screen and in the audio.",
     "developerName": "Bradley Bonanno",
@@ -36,10 +36,11 @@
     ],
     "websiteURL": "https://github.com/myl7/watch2",
     "defaultPrompt": [
-      "/watch https://youtu.be/dQw4w9WgXcQ what happens at the 30 second mark?",
-      "/watch ~/Movies/screen-recording.mp4 when does the UI break?",
-      "/watch https://youtu.be/<long-talk> summarize this"
+      "/watch2 https://youtu.be/dQw4w9WgXcQ what happens at the 30 second mark?",
+      "/watch2 ~/Movies/screen-recording.mp4 when does the UI break?",
+      "/watch2 https://youtu.be/<long-talk> summarize this"
     ],
     "brandColor": "#E11D48"
-  }
+  },
+  "longDescription": "watch2 lets the agent watch a video. It pulls a timestamped transcript from the platform's own captions when they exist and from Qwen3-ASR when they do not, optionally extracts scene-aware frames with ffmpeg, and writes a markdown report to disk that the agent reads and turns into notes with timestamps linking back to the source."
 }

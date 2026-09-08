@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SETUP = Path(__file__).resolve().parent.parent / "skills" / "watch" / "scripts" / "setup.py"
+SETUP = Path(__file__).resolve().parent.parent / "skills" / "watch2" / "scripts" / "setup.py"
 
 
 def _run(args, *, home=None, extra_env=None):

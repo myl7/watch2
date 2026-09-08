@@ -1,11 +1,11 @@
 {
   "name": "watch2",
   "interface": {
-    "displayName": "watch"
+    "displayName": "watch2"
   },
   "plugins": [
     {
-      "name": "watch",
+      "name": "watch2",
       "source": {
         "source": "url",
         "url": "https://github.com/myl7/watch2.git"

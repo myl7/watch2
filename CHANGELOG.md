@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to `/watch` are documented here.
+All notable changes are documented here.
+
+## [0.4.0] — 2026-09-08
+
+### Changed
+- **The skill is named `watch2`, invoked as `/watch2`.** Its directory moved from `skills/watch/` to `skills/watch2/`, and the plugin, marketplace, and Codex manifests follow. Anyone upgrading from 0.3.x has to call `/watch2`; the old name is gone rather than aliased.
+- Rotates user agents past Bilibili's HTTP 412. That 412 is a rate limit bucketed per (IP, User-Agent) which recovers in roughly ten minutes, so no fixed user agent escapes it: on one video page a bare request and a browser UA swapped which of them failed within ten minutes, while a third, unused UA went straight through. `_run_ytdlp` retries a Bilibili request through a short rotation on a 412, judging success by whether the caller got its file rather than by yt-dlp's exit code. Setting `WATCH_YTDLP_USER_AGENT` pins one identity and opts out.
+- Reports `ytdlp_age_days` and `ytdlp_stale` from `setup.py --json`, and leads with them when a download fails. yt-dlp versions are release dates, so this needs no network. Every download failure seen while building this traced back to a two-month-old yt-dlp, not to cookies or anti-bot measures.
+
+### Fixed
+- A cookie source no longer forces a hardcoded browser user agent. Cookies are for member-only or age-gated content; conflating them with the UA meant configuring cookies changed request fingerprinting for unrelated reasons.
+
+### Note
+- The config directory stays `~/.config/watch/`. Only the skill was renamed.
 
 ## [0.3.0] — 2026-09-07
 
@@ -33,9 +46,9 @@ Fork rename: `cheap-claude-video` → `watch2`.
 - pytest suite covering config, dedup, download, fixtures, frames, setup, timestamps, watch, and whisper (no network; ffmpeg-synthesized clips).
 
 ### Changed
-- **Restructured into a self-contained `skills/watch/` package** so `SKILL.md` and its `scripts/` runtime are siblings in one folder. This fixes installs on Codex, Cursor, Copilot, and other Agent Skills hosts: `npx skills add` now copies the skill as a working unit instead of grabbing the root `SKILL.md` without its scripts.
+- **Restructured into a self-contained `skills/watch2/` package** so `SKILL.md` and its `scripts/` runtime are siblings in one folder. This fixes installs on Codex, Cursor, Copilot, and other Agent Skills hosts: `npx skills add` now copies the skill as a working unit instead of grabbing the root `SKILL.md` without its scripts.
 - **Harness-agnostic path resolution** — `SKILL.md` resolves `$SKILL_DIR` from where it was Read instead of the Claude-Code-only `${CLAUDE_SKILL_DIR}`, so script calls work on every host.
-- `/watch` is now derived from `SKILL.md` frontmatter; the separate `commands/watch.md` wrapper was dropped to avoid a duplicate slash command.
+- `/watch2` is now derived from `SKILL.md` frontmatter; the separate `commands/watch.md` wrapper was dropped to avoid a duplicate slash command.
 - `balanced` now full-decodes to detect every scene cut across the whole video. The previous early-exit was faster but kept only the first cuts and dropped the tail of long videos.
 - `token-burner` is exempt from the long-video "sparse scan" warning, since it keeps every scene-change frame.
 - `--max-frames` is now an override on top of each mode's default cap, rather than a fixed default of 80.
@@ -67,7 +80,7 @@ Fork rename: `cheap-claude-video` → `watch2`.
 ## [0.1.1] — 2026-04-24
 
 ### Fixed
-- Added `commands/watch.md` shim so `/watch` is callable when installed as a Claude Code plugin. Without it, the plugin loaded but the skill wasn't exposed as a slash command.
+- Added `commands/watch.md` shim so `/watch2` is callable when installed as a Claude Code plugin. Without it, the plugin loaded but the skill wasn't exposed as a slash command.
 - `scripts/build-skill.sh` now strips `commands/` from the claude.ai `.skill` bundle alongside `hooks/` and `.claude-plugin/`.
 
 ## [0.1.0] — 2026-04-24
@@ -75,7 +88,7 @@ Fork rename: `cheap-claude-video` → `watch2`.
 Initial marketplace release.
 
 ### Added
-- `/watch <url-or-path> [question]` slash command.
+- `/watch2 <url-or-path> [question]` slash command.
 - yt-dlp download with native caption extraction (manual + auto-subs).
 - ffmpeg frame extraction with auto-scaled fps (≤2 fps, ≤100 frames, duration-aware budget).
 - `--start` / `--end` focused mode with denser frame budget and transcript range filtering.

@@ -23,7 +23,7 @@ The one thing Whisper does better is timestamp granularity: Qwen3-ASR reports fi
 
 ## Backends
 
-All of them speak the OpenAI `/audio/transcriptions` shape, so adding one is a row in `PROVIDERS` in [`skills/watch/scripts/asr.py`](skills/watch/scripts/asr.py).
+All of them speak the OpenAI `/audio/transcriptions` shape, so adding one is a row in `PROVIDERS` in [`skills/watch2/scripts/asr.py`](skills/watch2/scripts/asr.py).
 
 | `--asr` | Model | USD/hour | Timestamps |
 | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ Claude Code:
 
 ```
 /plugin marketplace add myl7/watch2
-/plugin install watch@watch2
+/plugin install watch2@watch2
 ```
 
 Everything else:
@@ -56,7 +56,7 @@ Or clone and symlink:
 
 ```
 git clone https://github.com/myl7/watch2.git
-ln -s "$(pwd)/watch2/skills/watch" ~/.claude/skills/watch   # or ~/.codex/skills/watch
+ln -s "$(pwd)/watch2/skills/watch" ~/.claude/skills/watch2   # or ~/.codex/skills/watch
 ```
 
 Then add a key to `~/.config/watch/.env`:
@@ -70,9 +70,9 @@ DEEPINFRA_API_KEY=...
 ## Use
 
 ```
-/watch https://www.youtube.com/watch?v=...
-/watch ~/Downloads/talk.mp4 what does he say about latency?
-/watch https://www.bilibili.com/video/... --detail balanced
+/watch2 https://www.youtube.com/watch?v=...
+/watch2 ~/Downloads/talk.mp4 what does he say about latency?
+/watch2 https://www.bilibili.com/video/... --detail balanced
 ```
 
 Frames are off by default. Add `--detail balanced` when the question is about something shown rather than said.

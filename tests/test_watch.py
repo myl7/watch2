@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-WATCH = Path(__file__).resolve().parent.parent / "skills" / "watch" / "scripts" / "watch.py"
+WATCH = Path(__file__).resolve().parent.parent / "skills" / "watch2" / "scripts" / "watch.py"
 
 
 def _run(clip: Path, *args: str, env_extra: dict | None = None) -> str:
@@ -56,7 +56,7 @@ def test_flag_overrides_env(cut_clip: Path):
 
 def test_default_is_transcript_and_extracts_no_frames(cut_clip: Path):
     """Frames are opt-in. A default run reports transcript detail and skips
-    extraction entirely, so a plain `/watch <url>` never pays for frame tokens."""
+    extraction entirely, so a plain `/watch2 <url>` never pays for frame tokens."""
     out = _run(cut_clip)  # no flag, WATCH_DETAIL cleared
     assert "**Detail:** transcript" in out
     assert "**Frames:** skipped (transcript detail)" in out

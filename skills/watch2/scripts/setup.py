@@ -8,7 +8,7 @@ Modes:
 
 Design:
 - Silent on success: --check exits 0 with no output when everything's ready so
-  that /watch doesn't spam "setup is complete" on every turn.
+  that /watch2 doesn't spam "setup is complete" on every turn.
 - Idempotent: re-running the installer is safe — it never clobbers existing
   keys and only appends missing ones.
 - SETUP_COMPLETE=true in ~/.config/watch/.env tells us the user has been
@@ -38,10 +38,10 @@ from config import get_config  # noqa: E402
 REQUIRED_BINARIES = ["ffmpeg", "ffprobe", "yt-dlp"]
 CONFIG_DIR = Path.home() / ".config" / "watch"
 CONFIG_FILE = CONFIG_DIR / ".env"
-ENV_TEMPLATE = """# /watch API configuration
+ENV_TEMPLATE = """# /watch2 API configuration
 #
 # ASR fallback — used only when yt-dlp cannot get captions (or when you point
-# /watch at a local file with no subtitles).
+# /watch2 at a local file with no subtitles).
 #
 # DeepInfra is preferred: it serves Qwen3-ASR-1.7B at $0.027 per hour of audio,
 # cheaper than Groq and far better on Chinese (Whisper drops punctuation
@@ -51,7 +51,7 @@ ENV_TEMPLATE = """# /watch API configuration
 # Get a Groq key:       https://console.groq.com/keys
 # Get an OpenAI key:    https://platform.openai.com/api-keys
 #
-# Leave all blank to disable ASR — /watch will still work, but videos without
+# Leave all blank to disable ASR — /watch2 will still work, but videos without
 # native captions will come back with no transcript.
 
 DEEPINFRA_API_KEY=
@@ -61,7 +61,7 @@ OPENAI_API_KEY=
 # Where reports are written. Default: $XDG_DATA_HOME/watch2 (~/.local/share/watch2)
 # WATCH_NOTES_DIR=
 
-# Default watch behavior (the /watch first-run wizard sets this for you).
+# Default watch behavior (the /watch2 first-run wizard sets this for you).
 # Allowed values: transcript (default, no frames) | efficient | balanced | token-burner
 # Keep the value on its own line with no trailing comment.
 # WATCH_DETAIL=transcript
@@ -151,7 +151,7 @@ def _check_file_permissions(path: Path) -> None:
         if mode & 0o044:
             _PERM_WARNED.add(key)
             sys.stderr.write(
-                f"[watch] WARNING: {path} is readable by other users. "
+                f"[watch2] WARNING: {path} is readable by other users. "
                 f"Run: chmod 600 {path}\n"
             )
             sys.stderr.flush()
@@ -186,7 +186,7 @@ def _read_env_key(name: str) -> str | None:
 def _have_api_key() -> tuple[bool, str | None]:
     """Whether the *effective* transcriber (per WATCH_TRANSCRIBER) has usable
     credentials — mirrors watch.py's backend resolution so `ready` here means
-    /watch will actually find a transcriber at runtime.
+    /watch2 will actually find a transcriber at runtime.
     """
     transcriber = get_config()["transcriber"]
 
@@ -298,7 +298,7 @@ def _status() -> dict:
     keyless install still reports `needs_key` on the very first run — that's
     the agent's cue to encourage adding one.
 
-    `can_proceed` is the operational gate: /watch can run as long as the
+    `can_proceed` is the operational gate: /watch2 can run as long as the
     binaries are present AND the user has either set a key or already finished
     setup (consciously opting out of Whisper). A keyless user who completed
     setup is NOT nagged on every call.
@@ -339,7 +339,7 @@ def _status() -> dict:
 def cmd_check() -> int:
     """Silent-on-success preflight.
 
-    Exit 0 with no output when /watch can run. A keyless user who already
+    Exit 0 with no output when /watch2 can run. A keyless user who already
     finished setup (SETUP_COMPLETE=true) counts as ready — Whisper is
     encouraged, not required — so they are never nagged on follow-up calls.
 
@@ -359,7 +359,7 @@ def cmd_check() -> int:
         parts.append("no transcriber API key (GROQ_API_KEY or OPENAI_API_KEY)")
     installer = Path(__file__).resolve()
     sys.stderr.write(
-        f"[watch] setup incomplete ({'; '.join(parts)}). "
+        f"[watch2] setup incomplete ({'; '.join(parts)}). "
         f"Run: python3 {installer}\n"
     )
     sys.stderr.flush()
@@ -416,7 +416,7 @@ def cmd_install() -> int:
         _write_setup_complete()
         print(f"[setup] ready. transcriber: {backend}")
         if installed_deps:
-            print("[setup] installed dependencies; /watch is fully set up.")
+            print("[setup] installed dependencies; /watch2 is fully set up.")
         return 0
 
     print("")
@@ -427,7 +427,7 @@ def cmd_install() -> int:
     print("    GROQ_API_KEY=...       (fallback; console.groq.com/keys)")
     print("    OPENAI_API_KEY=...     (fallback; platform.openai.com/api-keys)")
     print("")
-    print("  Without a key, /watch still works but videos without captions come back with no transcript.")
+    print("  Without a key, /watch2 still works but videos without captions come back with no transcript.")
     return 3
 
 

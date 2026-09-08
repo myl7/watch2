@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "skills" / "watch" / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "skills" / "watch2" / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import config  # noqa: E402

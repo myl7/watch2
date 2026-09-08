@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""/watch entry point: download video, extract frames, parse transcript.
+"""/watch2 entry point: download video, extract frames, parse transcript.
 
 Prints a markdown report to stdout listing frame paths + transcript. Claude
 then Reads each frame path to see the video.
@@ -45,7 +45,7 @@ def resolve_report_path(explicit: str | None, notes_dir: Path, info: dict, sourc
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        prog="watch",
+        prog="watch2",
         description="Download a video, extract auto-scaled frames, and surface the transcript.",
     )
     ap.add_argument("source", help="Video URL or local file path")
@@ -131,7 +131,7 @@ def main() -> int:
     else:
         work = Path(tempfile.mkdtemp(prefix="watch-"))
     work.mkdir(parents=True, exist_ok=True)
-    print(f"[watch] working dir: {work}", file=sys.stderr)
+    print(f"[watch2] working dir: {work}", file=sys.stderr)
 
     url_source = is_url(args.source)
     dl: dict = {"subtitle_path": None, "info": {}, "downloaded": False}
@@ -141,11 +141,11 @@ def main() -> int:
     video_path: str | None = None
 
     if url_source:
-        print("[watch] checking metadata/captions via yt-dlp…", file=sys.stderr)
+        print("[watch2] checking metadata/captions via yt-dlp…", file=sys.stderr)
         dl = fetch_captions(args.source, work / "download")
         if args.ignore_captions and dl.get("subtitle_path"):
             print(
-                "[watch] --ignore-captions set: skipping native captions, forcing ASR transcription",
+                "[watch2] --ignore-captions set: skipping native captions, forcing ASR transcription",
                 file=sys.stderr,
             )
         if dl.get("subtitle_path") and not args.ignore_captions:
@@ -154,7 +154,7 @@ def main() -> int:
                 transcript_text = format_transcript(transcript_segments)
                 transcript_source = "captions"
             except Exception as exc:
-                print(f"[watch] subtitle parse failed: {exc}", file=sys.stderr)
+                print(f"[watch2] subtitle parse failed: {exc}", file=sys.stderr)
                 transcript_segments = []
 
     # --timestamps needs the video for frame grabs, so it overrides the
@@ -165,8 +165,8 @@ def main() -> int:
     else:
         if url_source:
             print(
-                "[watch] downloading audio via yt-dlp…" if audio_only
-                else "[watch] downloading video via yt-dlp…",
+                "[watch2] downloading audio via yt-dlp…" if audio_only
+                else "[watch2] downloading video via yt-dlp…",
                 file=sys.stderr,
             )
             dl = download(
@@ -175,7 +175,7 @@ def main() -> int:
                 audio_only=audio_only,
             )
         else:
-            print("[watch] using local file…", file=sys.stderr)
+            print("[watch2] using local file…", file=sys.stderr)
             dl = download(args.source, work / "download")
         video_path = dl["video_path"]
 
@@ -247,7 +247,7 @@ def main() -> int:
         )
         if cue_meta.get("dropped_out_of_window"):
             print(
-                f"[watch] {cue_meta['dropped_out_of_window']} cue timestamp(s) outside the "
+                f"[watch2] {cue_meta['dropped_out_of_window']} cue timestamp(s) outside the "
                 "focus range — dropped",
                 file=sys.stderr,
             )
@@ -257,7 +257,7 @@ def main() -> int:
         cap_label = "unlimited" if detail_budget is None else str(detail_budget)
         engine_label = "keyframes" if detail == "efficient" else "scene-aware frames"
         print(
-            f"[watch] extracting {engine_label} over {scope} "
+            f"[watch2] extracting {engine_label} over {scope} "
             f"(target {target}, cap {cap_label})…",
             file=sys.stderr,
         )
@@ -294,7 +294,7 @@ def main() -> int:
             transcript_text = format_transcript(transcript_segments)
             transcript_source = "captions"
         except Exception as exc:
-            print(f"[watch] subtitle parse failed: {exc}", file=sys.stderr)
+            print(f"[watch2] subtitle parse failed: {exc}", file=sys.stderr)
 
     # Resolve the transcription backend: explicit --whisper wins, else the
     # WATCH_TRANSCRIBER config ("auto" walks asr.PREFERENCE for the first key).
@@ -318,7 +318,7 @@ def main() -> int:
                 transcript_text = format_transcript(transcript_segments)
                 transcript_source = f"asr ({used_backend})"
             except SystemExit as exc:
-                print(f"[watch] transcription failed: {exc}", file=sys.stderr)
+                print(f"[watch2] transcription failed: {exc}", file=sys.stderr)
         else:
             hint = (
                 f"--asr {requested} was set but the matching API key is missing"
@@ -327,11 +327,11 @@ def main() -> int:
             )
             setup_py = SCRIPT_DIR / "setup.py"
             print(
-                f"[watch] {hint} — run `python3 {setup_py}` to enable transcription",
+                f"[watch2] {hint} — run `python3 {setup_py}` to enable transcription",
                 file=sys.stderr,
             )
     elif not transcript_segments and video_path and not meta.get("has_audio"):
-        print("[watch] no audio stream found — proceeding without transcription", file=sys.stderr)
+        print("[watch2] no audio stream found — proceeding without transcription", file=sys.stderr)
 
     info = dl.get("info") or {}
 
@@ -479,9 +479,9 @@ def main() -> int:
         sys.stdout = saved_stdout
         report_file.close()
         frame_note = f"{len(frames)} frames" if frames else "no frames"
-        print(f"[watch] report: {report_path}")
+        print(f"[watch2] report: {report_path}")
         print(
-            f"[watch] {len(transcript_segments)} transcript segments "
+            f"[watch2] {len(transcript_segments)} transcript segments "
             f"({transcript_source}), {frame_note}, {format_time(full_duration)}"
         )
 

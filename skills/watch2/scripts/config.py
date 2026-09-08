@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared /watch configuration helpers."""
+"""Shared /watch2 configuration helpers."""
 from __future__ import annotations
 
 import os

@@ -108,7 +108,7 @@ def resolve_local(path: str) -> dict:
         raise SystemExit(f"File not found: {p}")
     if p.suffix.lower() not in VIDEO_EXTS:
         print(
-            f"[watch] warning: {p.suffix} is not a known video extension, proceeding anyway",
+            f"[watch2] warning: {p.suffix} is not a known video extension, proceeding anyway",
             file=sys.stderr,
         )
     return {
@@ -220,7 +220,7 @@ def _run_ytdlp(cmd: list[str], url: str, succeeded) -> subprocess.CompletedProce
             return result
         if i + 1 < len(attempts):
             print(
-                f"[watch] Bilibili returned 412 (per-UA rate limit); "
+                f"[watch2] Bilibili returned 412 (per-UA rate limit); "
                 f"retrying as a different client ({i + 2}/{len(attempts)})…",
                 file=sys.stderr,
             )
@@ -276,7 +276,7 @@ def _read_info(info_path: Path, url: str) -> dict:
                 "url": raw.get("webpage_url") or url,
             }
         except Exception as exc:
-            print(f"[watch] info.json parse failed: {exc}", file=sys.stderr)
+            print(f"[watch2] info.json parse failed: {exc}", file=sys.stderr)
             info = {"url": url}
     return info
 

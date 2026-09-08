@@ -334,7 +334,7 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
 
             if attempt < MAX_ATTEMPTS - 1:
                 print(
-                    f"[watch] whisper HTTP {exc.code} — retrying in {delay:.1f}s "
+                    f"[watch2] whisper HTTP {exc.code} — retrying in {delay:.1f}s "
                     f"(attempt {attempt + 2}/{MAX_ATTEMPTS})",
                     file=sys.stderr,
                 )
@@ -345,7 +345,7 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
             if attempt < MAX_ATTEMPTS - 1:
                 delay = RETRY_BASE_DELAY * (attempt + 1)
                 print(
-                    f"[watch] whisper network error ({type(exc).__name__}: {exc}) — "
+                    f"[watch2] whisper network error ({type(exc).__name__}: {exc}) — "
                     f"retrying in {delay:.1f}s (attempt {attempt + 2}/{MAX_ATTEMPTS})",
                     file=sys.stderr,
                 )
@@ -441,13 +441,13 @@ def transcribe_chunks(
         except SystemExit as exc:
             failures += 1
             print(
-                f"[watch] chunk {index + 1}/{len(chunks)} failed — skipping ({exc})",
+                f"[watch2] chunk {index + 1}/{len(chunks)} failed — skipping ({exc})",
                 file=sys.stderr,
             )
             continue
         segments.extend(shift_segments(chunk_segments, offset))
         print(
-            f"[watch] chunk {index + 1}/{len(chunks)} → {len(chunk_segments)} segments",
+            f"[watch2] chunk {index + 1}/{len(chunks)} → {len(chunk_segments)} segments",
             file=sys.stderr,
         )
 
@@ -496,7 +496,7 @@ def transcribe_video(
         )
 
     range_offset = start_seconds if (start_seconds and start_seconds > 0) else 0.0
-    print(f"[watch] extracting audio for {backend} ({PROVIDERS[backend]['model']})…", file=sys.stderr)
+    print(f"[watch2] extracting audio for {backend} ({PROVIDERS[backend]['model']})…", file=sys.stderr)
     audio_path = extract_audio(video_path, audio_out, start_seconds, end_seconds)
     audio_bytes = audio_path.stat().st_size
 
@@ -505,7 +505,7 @@ def transcribe_video(
 
     if audio_bytes <= MAX_UPLOAD_BYTES:
         print(
-            f"[watch] audio: {audio_bytes / 1024:.0f} kB — uploading to {backend}…",
+            f"[watch2] audio: {audio_bytes / 1024:.0f} kB — uploading to {backend}…",
             file=sys.stderr,
         )
         segments = transcribe_one(audio_path)
@@ -513,7 +513,7 @@ def transcribe_video(
         duration = audio_duration(audio_path)
         plan = plan_chunks(duration, audio_bytes, MAX_UPLOAD_BYTES)
         print(
-            f"[watch] audio: {audio_bytes / (1024 * 1024):.0f} MB exceeds "
+            f"[watch2] audio: {audio_bytes / (1024 * 1024):.0f} MB exceeds "
             f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB — splitting into {len(plan)} chunks…",
             file=sys.stderr,
         )
@@ -524,7 +524,7 @@ def transcribe_video(
         raise SystemExit("ASR returned no transcript segments")
 
     segments = shift_segments(segments, range_offset)
-    print(f"[watch] transcribed {len(segments)} segments via {backend}", file=sys.stderr)
+    print(f"[watch2] transcribed {len(segments)} segments via {backend}", file=sys.stderr)
     return segments, backend
 
 
