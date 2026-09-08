@@ -1,6 +1,6 @@
 ---
 name: watch2
-version: "0.4.0"
+version: "0.1.0"
 description: Watch a video (URL or local path). Downloads with yt-dlp, pulls a timestamped transcript from native captions or an ASR API, optionally extracts frames with ffmpeg, and writes a markdown report to disk for Claude to read, summarize, and answer from.
 argument-hint: "<video-url-or-path> [question]"
 allowed-tools: Bash, Read, Edit, Grep, AskUserQuestion
